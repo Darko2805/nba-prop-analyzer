@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Prop Analyzer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1><span>NBA</span> Prop Analyzer</h1>
+    <p>Matchup-based probability estimates for player props</p>
+  </header>
+
+  <!-- Input Form -->
+  <div class="form-card">
+    <form id="analyzeForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Player Name</label>
+          <input type="text" id="player" placeholder="e.g. Stephen Curry" required>
+        </div>
+        <div class="form-group">
+          <label>Opponent</label>
+          <select id="opponent" required>
+            <option value="">Team</option>
+            {% for team in teams %}
+            <option value="{{ team }}">{{ team }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prop Type</label>
+          <select id="prop_type" required>
+            <option value="points">Points</option>
+            <option value="rebounds">Rebounds</option>
+            <option value="assists">Assists</option>
+            <option value="3pm">3PM</option>
+            <option value="pra">PRA</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Line</label>
+          <input type="number" id="line" step="0.5" min="0.5" placeholder="28.5" required>
+        </div>
+      </div>
+      <button type="submit" class="btn" id="submitBtn">Analyze Prop</button>
+    </form>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Crunching matchup data & game logs...</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <!-- Header -->
+    <div class="result-header">
+      <h2 id="resTitle"></h2>
+      <p class="matchup" id="resMatchup"></p>
+    </div>
+
+    <!-- Probability -->
+    <div class="prob-card">
+      <div class="prob-row">
+        <span class="prob-label" style="color:var(--green)">OVER</span>
+        <div class="prob-bar-wrap">
+          <div class="prob-bar over" id="overBar"></div>
+        </div>
+        <span class="prob-pct" id="overPct" style="color:var(--green)"></span>
+      </div>
+      <div class="prob-row">
+        <span class="prob-label" style="color:var(--red)">UNDER</span>
+        <div class="prob-bar-wrap">
+          <div class="prob-bar under" id="underBar"></div>
+        </div>
+        <span class="prob-pct" id="underPct" style="color:var(--red)"></span>
+      </div>
+
+      <div style="text-align:center; margin-top:1rem;">
+        <span class="lean-badge" id="leanBadge"></span>
+        <span class="confidence-badge" id="confBadge"></span>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-box">
+          <div class="label">Season Avg</div>
+          <div class="value" id="seasonAvg"></div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Projection</div>
+          <div class="value" id="projection" style="color:var(--accent)"></div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Prop Line</div>
+          <div class="value" id="propLine"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Factors -->
+    <div class="section-card">
+      <h3>Key Factors</h3>
+      <div id="factors"></div>
+    </div>
+
+    <!-- Component Breakdown -->
+    <div class="section-card">
+      <h3>Component Breakdown</h3>
+      <table class="breakdown-table" id="breakdownTable">
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Last 5 Games -->
+    <div class="section-card" id="gameLogSection" style="display:none">
+      <h3>Last 5 Games (Basketball-Reference)</h3>
+      <table class="game-log-table">
+        <thead>
+          <tr><th>Date</th><th>Opp</th><th>Value</th><th>Result</th></tr>
+        </thead>
+        <tbody id="gameLogBody"></tbody>
+      </table>
+      <div class="game-log-summary" id="gameLogSummary"></div>
+    </div>
+
+    <!-- Variance -->
+    <div class="section-card" id="varianceSection" style="display:none">
+      <h3>Statistical Variance</h3>
+      <div class="stat-row" id="varianceRow"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('analyzeForm');
+const loading = document.getElementById('loading');
+const results = document.getElementById('results');
+const errorMsg = document.getElementById('errorMsg');
+const submitBtn = document.getElementById('submitBtn');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  // Reset
+  results.classList.remove('active');
+  errorMsg.classList.remove('active');
+  loading.classList.add('active');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Analyzing...';
+
+  const payload = {
+    player: document.getElementById('player').value,
+    opponent: document.getElementById('opponent').value,
+    prop_type: document.getElementById('prop_type').value,
+    line: document.getElementById('line').value,
+    trend: 1.0,
+  };
+
+  try {
+    const resp = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      throw new Error(data.error || 'Analysis failed');
+    }
+
+    renderResults(data);
+  } catch (err) {
+    errorMsg.textContent = err.message;
+    errorMsg.classList.add('active');
+  } finally {
+    loading.classList.remove('active');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Analyze Prop';
+  }
+});
+
+function renderResults(d) {
+  const unit = d.prop_unit;
+
+  // Header
+  document.getElementById('resTitle').textContent = `${d.player_name} - ${d.prop_label}`;
+  document.getElementById('resMatchup').textContent = `vs ${d.opponent} | Line: ${d.prop_line} ${unit}`;
+
+  // Probabilities
+  document.getElementById('overBar').style.width = d.over_prob + '%';
+  document.getElementById('underBar').style.width = d.under_prob + '%';
+  document.getElementById('overPct').textContent = d.over_prob + '%';
+  document.getElementById('underPct').textContent = d.under_prob + '%';
+
+  // Lean badge
+  const leanBadge = document.getElementById('leanBadge');
+  leanBadge.textContent = d.lean === 'NO LEAN' ? 'NO STRONG LEAN' : `LEAN ${d.lean} ${d.prop_line}`;
+  leanBadge.className = 'lean-badge ' + (d.lean === 'OVER' ? 'over' : d.lean === 'UNDER' ? 'under' : 'neutral');
+
+  // Confidence
+  const confBadge = document.getElementById('confBadge');
+  confBadge.textContent = d.confidence + ' CONFIDENCE';
+  confBadge.className = 'confidence-badge ' + d.confidence.toLowerCase();
+
+  // Stats
+  document.getElementById('seasonAvg').textContent = d.season_avg + ' ' + unit;
+  document.getElementById('projection').textContent = d.predicted_value + ' ' + unit;
+  document.getElementById('propLine').textContent = d.prop_line + ' ' + unit;
+
+  // Key Factors
+  const factorsDiv = document.getElementById('factors');
+  factorsDiv.innerHTML = '';
+  d.key_factors.forEach(f => {
+    const cls = f.startsWith('+') ? 'positive' : f.startsWith('-') ? 'negative' : 'neutral';
+    factorsDiv.innerHTML += `<div class="factor-item ${cls}">${f}</div>`;
+  });
+
+  // Breakdown
+  const bd = d.breakdown;
+  const tbody = document.querySelector('#breakdownTable tbody');
+  tbody.innerHTML = `
+    <tr><td>Baseline</td><td></td><td>${bd.baseline} ${unit}</td></tr>
+    <tr><td>Matchup adjustment</td><td>x${bd.matchup}</td><td>${bd.after_matchup} ${unit}</td></tr>
+    <tr><td>Pace adjustment</td><td>x${bd.pace}</td><td>${bd.after_pace} ${unit}</td></tr>
+    <tr><td>Opponent profile</td><td>x${bd.opponent_profile}</td><td>${bd.after_opp} ${unit}</td></tr>
+    <tr><td>Volume adjustment</td><td>x${bd.volume}</td><td>${bd.after_volume} ${unit}</td></tr>
+    <tr><td>Trend</td><td>x${bd.trend}</td><td>${bd.final} ${unit}</td></tr>
+    <tr><td><strong>Final Projection</strong></td><td></td><td><strong>${bd.final} ${unit}</strong></td></tr>
+  `;
+
+  // Game Log
+  const glSection = document.getElementById('gameLogSection');
+  if (d.last_5) {
+    glSection.style.display = 'block';
+    const glBody = document.getElementById('gameLogBody');
+    glBody.innerHTML = '';
+    d.last_5.games.forEach(g => {
+      const cls = g.hit === 'OVER' ? 'hit-over' : 'hit-under';
+      glBody.innerHTML += `<tr>
+        <td>${g.date}</td>
+        <td>${g.opponent}</td>
+        <td>${g.value} ${unit}</td>
+        <td class="${cls}">${g.hit}</td>
+      </tr>`;
+    });
+    document.getElementById('gameLogSummary').innerHTML = `
+      <span>L5 Avg: <strong>${d.last_5.avg} ${unit}</strong></span>
+      <span>Range: <strong>${d.last_5.min}-${d.last_5.max}</strong></span>
+      <span>Hit Rate: <strong>${d.last_5.hit_count}/${d.last_5.total} OVER</strong></span>
+    `;
+  } else {
+    glSection.style.display = 'none';
+  }
+
+  // Variance
+  const varSection = document.getElementById('varianceSection');
+  if (d.variance) {
+    varSection.style.display = 'block';
+    document.getElementById('varianceRow').innerHTML = `
+      <div class="stat-box">
+        <div class="label">Games Played</div>
+        <div class="value">${d.variance.games_played}</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Real Season Avg</div>
+        <div class="value">${d.variance.season_avg} ${unit}</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Std Deviation</div>
+        <div class="value">${d.variance.std_dev} ${unit}</div>
+      </div>
+    `;
+  } else {
+    varSection.style.display = 'none';
+  }
+
+  results.classList.add('active');
+  results.scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>
