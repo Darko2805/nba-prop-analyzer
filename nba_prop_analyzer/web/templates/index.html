@@ -229,9 +229,9 @@ function renderResults(d) {
   const tbody = document.querySelector('#breakdownTable tbody');
   tbody.innerHTML = `
     <tr><td>Baseline</td><td></td><td>${bd.baseline} ${unit}</td></tr>
-    <tr><td>Matchup adjustment</td><td>x${bd.matchup}</td><td>${bd.after_matchup} ${unit}</td></tr>
-    <tr><td>Pace adjustment</td><td>x${bd.pace}</td><td>${bd.after_pace} ${unit}</td></tr>
-    <tr><td>Opponent profile</td><td>x${bd.opponent_profile}</td><td>${bd.after_opp} ${unit}</td></tr>
+    <tr><td>Matchup (ORTG/DRTG)</td><td>x${bd.matchup}</td><td>${bd.after_matchup} ${unit}</td></tr>
+    <tr><td>Pace (possessions)</td><td>x${bd.pace}</td><td>${bd.after_pace} ${unit}</td></tr>
+    <tr><td>Shot zone exploit</td><td>x${bd.shot_zone}</td><td>${bd.after_zone} ${unit}</td></tr>
     <tr><td>Volume adjustment</td><td>x${bd.volume}</td><td>${bd.after_volume} ${unit}</td></tr>
     <tr><td>Trend</td><td>x${bd.trend}</td><td>${bd.final} ${unit}</td></tr>
     <tr><td><strong>Final Projection</strong></td><td></td><td><strong>${bd.final} ${unit}</strong></td></tr>

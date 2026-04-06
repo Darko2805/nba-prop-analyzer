@@ -57,6 +57,26 @@ def fetch_all_players(year: int = CURRENT_SEASON_YEAR) -> list[PlayerStats]:
         team_raw = p.get("TeamAbbreviation", p.get("Team", ""))
         team_abbr = normalize_team(str(team_raw)) or str(team_raw)
 
+        tsa100 = max(_safe_float(p, "TSA100", 1), 1)
+        at_rim_fga100 = _safe_float(p, "d_AtRimFGA_Per100")
+        long_mid_fga100 = _safe_float(p, "d_LongMidRangeFGA_Per100")
+        short_mid_fga100 = _safe_float(p, "d_ShortMidRangeFGA_Per100")
+
+        # Zone accuracy: try multiple field name patterns
+        at_rim_acc = (
+            _safe_float(p, "d_AtRimAccuracy")
+            or _safe_float(p, "AtRimAccuracy")
+            or _safe_float(p, "d_AtRimFG_Pct")
+        )
+        short_mid_acc = (
+            _safe_float(p, "d_ShortMidRangeAccuracy")
+            or _safe_float(p, "ShortMidRangeAccuracy")
+        )
+        long_mid_acc = (
+            _safe_float(p, "d_LongMidRangeAccuracy")
+            or _safe_float(p, "LongMidRangeAccuracy")
+        )
+
         player = PlayerStats(
             name=p.get("Name", p.get("player_name", "Unknown")),
             team_abbr=team_abbr,
@@ -77,8 +97,12 @@ def fetch_all_players(year: int = CURRENT_SEASON_YEAR) -> list[PlayerStats]:
             ts_pct=_safe_float(p, "TS_pct"),
             tsa_per100=_safe_float(p, "TSA100"),
             offensive_archetype=p.get("Offensive Archetype", ""),
-            at_rim_freq=_safe_float(p, "d_AtRimFGA_Per100") / max(_safe_float(p, "TSA100", 1), 1),
-            mid_range_freq=_safe_float(p, "d_LongMidRangeFGA_Per100") / max(_safe_float(p, "TSA100", 1), 1),
+            at_rim_freq=at_rim_fga100 / tsa100,
+            mid_range_freq=long_mid_fga100 / tsa100,
+            short_mid_freq=short_mid_fga100 / tsa100,
+            at_rim_acc=at_rim_acc,
+            short_mid_acc=short_mid_acc,
+            long_mid_acc=long_mid_acc,
             o_dpm=_safe_float(p, "o_dpm"),
             d_dpm=_safe_float(p, "d_dpm"),
             ortg_on=_safe_float(p, "rortg_on"),
@@ -219,6 +243,11 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
             opp_at_rim_acc=_safe_float(o, "AtRimAccuracy"),
             drtg=team_drtg,
             pace=team_pace,
+            opp_long_mid_freq=_safe_float(o, "LongMidRangeFrequency"),
+            opp_long_mid_acc=_safe_float(o, "LongMidRangeAccuracy"),
+            opp_short_mid_freq=_safe_float(o, "ShortMidRangeFrequency"),
+            opp_short_mid_acc=_safe_float(o, "ShortMidRangeAccuracy"),
+            opp_three_freq=fg3a_total / max(total_fga, 1) if total_fga > 0 else 0.0,
         )
 
     # Compute league averages from team data

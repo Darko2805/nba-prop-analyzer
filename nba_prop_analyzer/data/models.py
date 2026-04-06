@@ -23,11 +23,16 @@ class PlayerStats:
     tsa_per100: float
     offensive_archetype: str
     at_rim_freq: float
-    mid_range_freq: float
+    mid_range_freq: float   # long mid-range frequency
     o_dpm: float
     d_dpm: float
     ortg_on: float
     drtg_on: float
+    # Shot zone detail (added for zone exploitation analysis)
+    short_mid_freq: float = 0.0
+    at_rim_acc: float = 0.0
+    short_mid_acc: float = 0.0
+    long_mid_acc: float = 0.0
 
     @property
     def pra(self) -> float:
@@ -75,6 +80,12 @@ class OpponentDefense:
     opp_at_rim_acc: float
     drtg: float
     pace: float
+    # Extended zone defense data (added for shot zone exploitation)
+    opp_long_mid_freq: float = 0.0
+    opp_long_mid_acc: float = 0.0
+    opp_short_mid_freq: float = 0.0
+    opp_short_mid_acc: float = 0.0
+    opp_three_freq: float = 0.0
 
 
 @dataclass

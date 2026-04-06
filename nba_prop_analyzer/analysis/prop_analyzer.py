@@ -5,7 +5,7 @@ from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPredict
 from ..data.team_mapping import normalize_team
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
-from .opponent_profile import calculate_opponent_profile_adjustment
+from .shot_zone import calculate_shot_zone_exploitation
 from .volume import calculate_volume_adjustment
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary
 from .probability import estimate_probability, classify_confidence
@@ -122,8 +122,8 @@ class PropAnalyzer:
         pace_factor, pace_note = calculate_pace_factor(
             player_team, opponent_team, self.league_avg.get("pace", 100.0)
         )
-        opp_profile_factor, opp_note = calculate_opponent_profile_adjustment(
-            player, opponent_defense, self.league_avg, prop_type
+        zone_factor, zone_notes = calculate_shot_zone_exploitation(
+            player, player_team, opponent_defense, prop_type
         )
         volume_factor, volume_note = calculate_volume_adjustment(
             player, player_team, opponent_defense, self.league_avg, prop_type
@@ -133,7 +133,7 @@ class PropAnalyzer:
         )
 
         # Compute adjusted prediction
-        adjusted = baseline * matchup_factor * pace_factor * opp_profile_factor * volume_factor * trend_factor
+        adjusted = baseline * matchup_factor * pace_factor * zone_factor * volume_factor * trend_factor
 
         # Probability (with real variance if available)
         over_prob, under_prob = estimate_probability(
@@ -141,20 +141,20 @@ class PropAnalyzer:
         )
         confidence = classify_confidence(over_prob)
 
-        # Collect factors
-        key_factors = [matchup_note, pace_note, opp_note, volume_note, trend_note]
+        # Collect factors: zone_notes is a list (multiple step lines)
+        key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, trend_note]
 
         breakdown = {
             "baseline": baseline,
             "matchup": matchup_factor,
             "pace": pace_factor,
-            "opponent_profile": opp_profile_factor,
+            "shot_zone": zone_factor,
             "volume": volume_factor,
             "trend": trend_factor,
             "after_matchup": baseline * matchup_factor,
             "after_pace": baseline * matchup_factor * pace_factor,
-            "after_opp": baseline * matchup_factor * pace_factor * opp_profile_factor,
-            "after_volume": baseline * matchup_factor * pace_factor * opp_profile_factor * volume_factor,
+            "after_zone": baseline * matchup_factor * pace_factor * zone_factor,
+            "after_volume": baseline * matchup_factor * pace_factor * zone_factor * volume_factor,
             "final": adjusted,
         }
 
