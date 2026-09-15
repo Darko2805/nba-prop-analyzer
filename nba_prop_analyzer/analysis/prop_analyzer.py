@@ -181,7 +181,7 @@ class PropAnalyzer:
 
         if prop_type in COMBO_PROP_TYPES:
             baseline, matchup_factor, matchup_note, pace_factor, pace_note, \
-                zone_factor, zone_notes, volume_factor, volume_note, trend_factor, trend_note = \
+                zone_factor, zone_notes, zones, volume_factor, volume_note, trend_factor, trend_note = \
                 self._run_combo_factors(
                     player, player_team, opponent_team, opponent_defense, prop_type, game_logs
                 )
@@ -193,7 +193,7 @@ class PropAnalyzer:
             pace_factor, pace_note = calculate_pace_factor(
                 player_team, opponent_team, self.league_avg.get("pace", 100.0)
             )
-            zone_factor, zone_notes = calculate_shot_zone_exploitation(
+            zone_factor, zone_notes, zones = calculate_shot_zone_exploitation(
                 player, player_team, opponent_defense, prop_type
             )
             volume_factor, volume_note = calculate_volume_adjustment(
@@ -228,6 +228,8 @@ class PropAnalyzer:
             "after_volume": baseline * matchup_factor * pace_factor * zone_factor * volume_factor,
             "final": adjusted,
         }
+        if zones:
+            breakdown["zones"] = zones
 
         # Add game log summary to breakdown if available
         if game_logs:
@@ -306,8 +308,8 @@ class PropAnalyzer:
         pace_factor, pace_note = calculate_pace_factor(
             player_team, opponent_team, self.league_avg.get("pace", 100.0)
         )
-        zone_a, zone_notes_a = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_a)
-        zone_b, zone_notes_b = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_b)
+        zone_a, zone_notes_a, zones_a = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_a)
+        zone_b, zone_notes_b, zones_b = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_b)
         volume_a, volume_note_a = calculate_volume_adjustment(
             player, player_team, opponent_defense, self.league_avg, comp_a
         )
@@ -333,7 +335,12 @@ class PropAnalyzer:
         if not zone_notes:
             zone_notes = ["~ Zone analysis not applicable for this combo"]
 
+        # Only one component of a combo is ever scoring-related (zone exploitation
+        # doesn't apply to rebounds/assists/turnovers), so just take whichever side
+        # actually produced zones rather than trying to blend two zone maps.
+        zones = zones_a or zones_b
+
         return (
             baseline, matchup_factor, matchup_note, pace_factor, pace_note,
-            zone_factor, zone_notes, volume_factor, volume_note, trend_factor, trend_note,
+            zone_factor, zone_notes, zones, volume_factor, volume_note, trend_factor, trend_note,
         )

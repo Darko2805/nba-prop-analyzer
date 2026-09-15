@@ -293,6 +293,69 @@ header p {
 .factor-item.negative { color: var(--red); }
 .factor-item.neutral { color: var(--text-muted); }
 
+/* Shot zone exploitation court */
+.court-wrap {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.court-svg {
+  width: 260px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.zone-shape {
+  fill: transparent;
+  transition: fill 0.3s, fill-opacity 0.3s;
+}
+
+.court-lines rect,
+.court-lines circle,
+.court-lines line,
+.court-lines path {
+  fill: none;
+  stroke: var(--card-border);
+  stroke-width: 2;
+}
+
+.court-legend {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.court-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.court-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.court-legend-text strong {
+  color: var(--text);
+}
+
+.court-hint {
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* Breakdown table */
 .breakdown-table {
   width: 100%;

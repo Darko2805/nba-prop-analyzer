@@ -113,6 +113,11 @@ def analyze():
         },
     }
 
+    # Zone exploitation breakdown, for the half-court diagram (absent when not
+    # applicable to this prop type, e.g. rebounds/assists/turnovers)
+    if "zones" in bd:
+        result["zones"] = bd["zones"]
+
     # Add game log data if available
     if "last_5_games" in bd:
         s = bd["last_5_games"]

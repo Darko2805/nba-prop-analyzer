@@ -118,6 +118,32 @@
       <div id="factors"></div>
     </div>
 
+    <!-- Shot Zone Exploitation Court -->
+    <div class="section-card" id="courtSection" style="display:none">
+      <h3>Shot Zone Exploitation</h3>
+      <div class="court-wrap">
+        <svg viewBox="0 0 500 460" class="court-svg" id="courtSvg">
+          <!-- colored zones (bottom layer, drawn largest-to-smallest so each ring peeks out around the next) -->
+          <rect x="20" y="20" width="460" height="410" rx="4" id="zoneThree" class="zone-shape"></rect>
+          <circle cx="250" cy="415" r="190" id="zoneLongMid" class="zone-shape"></circle>
+          <circle cx="250" cy="415" r="120" id="zoneShortMid" class="zone-shape"></circle>
+          <circle cx="250" cy="415" r="55" id="zoneAtRim" class="zone-shape"></circle>
+
+          <!-- court line art (on top, no fill) -->
+          <g class="court-lines">
+            <rect x="20" y="20" width="460" height="410" rx="4"></rect>
+            <rect x="190" y="255" width="120" height="160"></rect>
+            <circle cx="250" cy="255" r="60"></circle>
+            <line x1="220" y1="400" x2="280" y2="400"></line>
+            <circle cx="250" cy="415" r="7.5"></circle>
+            <path d="M 44 415 L 44 160 A 206 206 0 0 1 456 160 L 456 415"></path>
+          </g>
+        </svg>
+        <div class="court-legend" id="courtLegend"></div>
+      </div>
+      <p class="court-hint">Shaded by exploitation gap (opponent accuracy vs league average in that zone) — deeper color and more visible ring means both a bigger gap and heavier usage by the player.</p>
+    </div>
+
     <!-- Component Breakdown -->
     <div class="section-card">
       <h3>Component Breakdown</h3>
@@ -231,6 +257,15 @@ function renderResults(d) {
     factorsDiv.innerHTML += `<div class="factor-item ${cls}">${f}</div>`;
   });
 
+  // Shot Zone Exploitation Court
+  const courtSection = document.getElementById('courtSection');
+  if (d.zones) {
+    courtSection.style.display = 'block';
+    renderCourt(d.zones);
+  } else {
+    courtSection.style.display = 'none';
+  }
+
   // Breakdown
   const bd = d.breakdown;
   const tbody = document.querySelector('#breakdownTable tbody');
@@ -292,6 +327,61 @@ function renderResults(d) {
 
   results.classList.add('active');
   results.scrollIntoView({ behavior: 'smooth' });
+}
+
+function zoneColor(gap) {
+  if (gap > 0.05) return 'var(--green)';
+  if (gap > 0.015) return '#4d7c58';
+  if (gap < -0.05) return 'var(--red)';
+  if (gap < -0.015) return '#7c4d4d';
+  return 'var(--text-muted)';
+}
+
+function zoneOpacity(freq) {
+  return Math.min(0.85, Math.max(0.18, freq * 1.3));
+}
+
+function zoneGapLabel(gap) {
+  if (gap > 0.05) return 'strong exploit';
+  if (gap > 0.015) return 'mild exploit';
+  if (gap < -0.05) return 'strong coverage';
+  if (gap < -0.015) return 'mild coverage';
+  return 'neutral';
+}
+
+const ZONE_SHAPE_IDS = {
+  at_rim: 'zoneAtRim',
+  short_mid: 'zoneShortMid',
+  long_mid: 'zoneLongMid',
+  three: 'zoneThree',
+};
+
+function renderCourt(zones) {
+  const legend = document.getElementById('courtLegend');
+  legend.innerHTML = '';
+
+  Object.entries(ZONE_SHAPE_IDS).forEach(([key, shapeId]) => {
+    const zone = zones[key];
+    const shape = document.getElementById(shapeId);
+    if (!zone) {
+      shape.style.fill = 'transparent';
+      return;
+    }
+    shape.style.fill = zoneColor(zone.gap);
+    shape.style.fillOpacity = zoneOpacity(zone.player_freq);
+
+    const gapPct = (zone.gap * 100).toFixed(1);
+    const gapSign = zone.gap > 0 ? '+' : '';
+    legend.innerHTML += `
+      <div class="court-legend-item">
+        <span class="court-legend-swatch" style="background:${zoneColor(zone.gap)}; opacity:${zoneOpacity(zone.player_freq)}"></span>
+        <span class="court-legend-text">
+          <strong>${zone.label}</strong> — ${(zone.player_freq * 100).toFixed(0)}% usage,
+          opp allows ${(zone.opp_acc * 100).toFixed(1)}% (league ${(zone.league_acc * 100).toFixed(1)}%,
+          ${gapSign}${gapPct}% — ${zoneGapLabel(zone.gap)})
+        </span>
+      </div>`;
+  });
 }
 </script>
 

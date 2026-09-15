@@ -27,15 +27,19 @@ def calculate_shot_zone_exploitation(
     player_team: TeamProfile,
     opponent_defense: OpponentDefense,
     prop_type: str,
-) -> tuple[float, list[str]]:
+) -> tuple[float, list[str], dict]:
     """
-    Returns (multiplicative_factor, list_of_step_notes).
+    Returns (multiplicative_factor, list_of_step_notes, zones).
 
     Factor range: 0.82 (opponent locks every zone) – 1.22 (multiple zone gaps exploited).
     Steps contain '+'/'-'/'→' prefixed strings for the UI.
+    zones is keyed by at_rim/short_mid/long_mid/three, each with the player's
+    shot frequency in that zone, the opponent's accuracy allowed, the league
+    average, and the gap between them (positive = exploitable) — enough to
+    drive a half-court exploitation diagram in the UI. Empty when not applicable.
     """
     if prop_type not in ("points", "pra", "3pm", "fgm", "fga", "3pa"):
-        return 1.0, ["~ Zone analysis not applicable for this prop"]
+        return 1.0, ["~ Zone analysis not applicable for this prop"], {}
 
     steps: list[str] = []
 
@@ -158,4 +162,23 @@ def calculate_shot_zone_exploitation(
         summary = f"~ Neutral zone matchup (x{factor:.3f})"
 
     steps.insert(0, summary)
-    return factor, steps
+
+    zones = {
+        "at_rim": {
+            "label": "At Rim", "player_freq": round(at_rim, 3),
+            "opp_acc": round(opp_rim_acc, 3), "league_acc": _LEAGUE["at_rim_acc"], "gap": round(rim_gap, 3),
+        },
+        "short_mid": {
+            "label": "Short Mid", "player_freq": round(short_mid, 3),
+            "opp_acc": round(opp_s_mid_acc, 3), "league_acc": _LEAGUE["short_mid_acc"], "gap": round(s_mid_gap, 3),
+        },
+        "long_mid": {
+            "label": "Long Mid", "player_freq": round(long_mid, 3),
+            "opp_acc": round(opp_l_mid_acc, 3), "league_acc": _LEAGUE["long_mid_acc"], "gap": round(l_mid_gap, 3),
+        },
+        "three": {
+            "label": "3PT", "player_freq": round(three_rate, 3),
+            "opp_acc": round(opp_three_acc, 3), "league_acc": _LEAGUE["three_acc"], "gap": round(three_gap, 3),
+        },
+    }
+    return factor, steps, zones
