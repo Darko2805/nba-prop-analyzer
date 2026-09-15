@@ -128,4 +128,11 @@ def _stat_label(prop_type: str) -> str:
         "assists": "AST",
         "3pm": "3PM",
         "pra": "PRA",
+        "fgm": "FGM",
+        "fga": "FGA",
+        "3pa": "3PA",
+        "turnovers": "TOV",
+        "pts_ast": "PTS+AST",
+        "pts_reb": "PTS+REB",
+        "ast_reb": "AST+REB",
     }.get(prop_type, prop_type.upper())

@@ -1,3 +1,4 @@
+from ..config import COMBO_PROP_TYPES
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
@@ -8,7 +9,7 @@ from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
 from .volume import calculate_volume_adjustment
-from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary
+from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
 from .probability import estimate_probability, classify_confidence
 
 
@@ -151,28 +152,34 @@ class PropAnalyzer:
         except Exception as e:
             print(f"  Game log fetch failed ({e}), using season averages")
 
-        # Get baseline stat
-        baseline = self._get_baseline(player, prop_type)
-
-        # Get game log values for variance and trend
+        # Get game log values for variance and trend (combo types sum the two
+        # component stats per game, giving real joint variance/trend rather
+        # than combining two separate marginal estimates)
         game_values = get_stat_from_games(game_logs, prop_type) if game_logs else None
 
-        # Run all analysis modules
-        matchup_factor, matchup_note = calculate_matchup_factor(
-            player, player_team, opponent_defense, self.league_avg, prop_type
-        )
-        pace_factor, pace_note = calculate_pace_factor(
-            player_team, opponent_team, self.league_avg.get("pace", 100.0)
-        )
-        zone_factor, zone_notes = calculate_shot_zone_exploitation(
-            player, player_team, opponent_defense, prop_type
-        )
-        volume_factor, volume_note = calculate_volume_adjustment(
-            player, player_team, opponent_defense, self.league_avg, prop_type
-        )
-        trend_factor, trend_note = estimate_trend_factor(
-            player, prop_type, game_logs=game_logs
-        )
+        if prop_type in COMBO_PROP_TYPES:
+            baseline, matchup_factor, matchup_note, pace_factor, pace_note, \
+                zone_factor, zone_notes, volume_factor, volume_note, trend_factor, trend_note = \
+                self._run_combo_factors(
+                    player, player_team, opponent_team, opponent_defense, prop_type, game_logs
+                )
+        else:
+            baseline = self._get_baseline(player, prop_type)
+            matchup_factor, matchup_note = calculate_matchup_factor(
+                player, player_team, opponent_defense, self.league_avg, prop_type
+            )
+            pace_factor, pace_note = calculate_pace_factor(
+                player_team, opponent_team, self.league_avg.get("pace", 100.0)
+            )
+            zone_factor, zone_notes = calculate_shot_zone_exploitation(
+                player, player_team, opponent_defense, prop_type
+            )
+            volume_factor, volume_note = calculate_volume_adjustment(
+                player, player_team, opponent_defense, self.league_avg, prop_type
+            )
+            trend_factor, trend_note = estimate_trend_factor(
+                player, prop_type, game_logs=game_logs
+            )
 
         # Compute adjusted prediction
         adjusted = baseline * matchup_factor * pace_factor * zone_factor * volume_factor * trend_factor
@@ -240,5 +247,71 @@ class PropAnalyzer:
             return player.three_pm_pg
         elif prop_type == "pra":
             return player.pra
+        elif prop_type == "fgm":
+            return player.fgm_pg
+        elif prop_type == "fga":
+            return player.fga_pg
+        elif prop_type == "3pa":
+            return player.three_pa_pg
+        elif prop_type == "turnovers":
+            return player.topg
+        elif prop_type in COMBO_PROP_TYPES:
+            comp_a, comp_b = COMBO_PROP_TYPES[prop_type]
+            return self._get_baseline(player, comp_a) + self._get_baseline(player, comp_b)
         else:
             raise ValueError(f"Unknown prop type: {prop_type}")
+
+    def _run_combo_factors(self, player, player_team, opponent_team, opponent_defense, prop_type, game_logs):
+        """
+        Two-stat combo props (e.g. pts_ast) run each component through the
+        exact same single-stat pipeline, then blend the factors weighted by
+        each component's share of the combined baseline. Pace is identical
+        for both components (it doesn't depend on prop_type), so it isn't blended.
+        """
+        comp_a, comp_b = COMBO_PROP_TYPES[prop_type]
+        baseline_a = self._get_baseline(player, comp_a)
+        baseline_b = self._get_baseline(player, comp_b)
+        baseline = baseline_a + baseline_b
+        weight_a = baseline_a / baseline if baseline > 0 else 0.5
+        weight_b = 1.0 - weight_a
+
+        matchup_a, matchup_note_a = calculate_matchup_factor(
+            player, player_team, opponent_defense, self.league_avg, comp_a
+        )
+        matchup_b, matchup_note_b = calculate_matchup_factor(
+            player, player_team, opponent_defense, self.league_avg, comp_b
+        )
+        pace_factor, pace_note = calculate_pace_factor(
+            player_team, opponent_team, self.league_avg.get("pace", 100.0)
+        )
+        zone_a, zone_notes_a = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_a)
+        zone_b, zone_notes_b = calculate_shot_zone_exploitation(player, player_team, opponent_defense, comp_b)
+        volume_a, volume_note_a = calculate_volume_adjustment(
+            player, player_team, opponent_defense, self.league_avg, comp_a
+        )
+        volume_b, volume_note_b = calculate_volume_adjustment(
+            player, player_team, opponent_defense, self.league_avg, comp_b
+        )
+        trend_a, trend_note_a = estimate_trend_factor(player, comp_a, game_logs=game_logs)
+        trend_b, trend_note_b = estimate_trend_factor(player, comp_b, game_logs=game_logs)
+
+        matchup_factor = weight_a * matchup_a + weight_b * matchup_b
+        zone_factor = weight_a * zone_a + weight_b * zone_b
+        volume_factor = weight_a * volume_a + weight_b * volume_b
+        trend_factor = weight_a * trend_a + weight_b * trend_b
+
+        label_a, label_b = _stat_label(comp_a), _stat_label(comp_b)
+        matchup_note = f"[{label_a}] {matchup_note_a} | [{label_b}] {matchup_note_b}"
+        volume_note = f"[{label_a}] {volume_note_a} | [{label_b}] {volume_note_b}"
+        trend_note = f"[{label_a}] {trend_note_a} | [{label_b}] {trend_note_b}"
+
+        not_applicable = "not applicable"
+        zone_notes = [f"[{label_a}] {n}" for n in zone_notes_a if not_applicable not in n]
+        zone_notes += [f"[{label_b}] {n}" for n in zone_notes_b if not_applicable not in n]
+        if not zone_notes:
+            zone_notes = ["~ Zone analysis not applicable for this combo"]
+
+        return (
+            baseline, matchup_factor, matchup_note, pace_factor, pace_note,
+            zone_factor, zone_notes, volume_factor, volume_note, trend_factor, trend_note,
+        )

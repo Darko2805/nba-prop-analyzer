@@ -33,6 +33,9 @@ class PlayerStats:
     at_rim_acc: float = 0.0
     short_mid_acc: float = 0.0
     long_mid_acc: float = 0.0
+    fgm_pg: float = 0.0
+    fga_pg: float = 0.0
+    topg: float = 0.0
 
     @property
     def pra(self) -> float:
@@ -58,6 +61,7 @@ class TeamProfile:
     ppg: float
     rpg: float
     apg: float
+    fga: float = 0.0
 
 
 @dataclass
@@ -86,6 +90,7 @@ class OpponentDefense:
     opp_short_mid_freq: float = 0.0
     opp_short_mid_acc: float = 0.0
     opp_three_freq: float = 0.0
+    opp_fga: float = 0.0
 
 
 @dataclass

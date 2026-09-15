@@ -68,6 +68,13 @@ def analyze():
             "assists": "ASSISTS",
             "3pm": "3-POINTERS MADE",
             "pra": "PTS + REB + AST",
+            "fgm": "FIELD GOALS MADE",
+            "fga": "FIELD GOALS ATTEMPTED",
+            "3pa": "3-POINTERS ATTEMPTED",
+            "turnovers": "TURNOVERS",
+            "pts_ast": "PTS + AST",
+            "pts_reb": "PTS + REB",
+            "ast_reb": "AST + REB",
         }.get(pred.prop_type, pred.prop_type.upper()),
         "prop_unit": {
             "points": "PTS",
@@ -75,6 +82,13 @@ def analyze():
             "assists": "AST",
             "3pm": "3PM",
             "pra": "PRA",
+            "fgm": "FGM",
+            "fga": "FGA",
+            "3pa": "3PA",
+            "turnovers": "TOV",
+            "pts_ast": "PTS+AST",
+            "pts_reb": "PTS+REB",
+            "ast_reb": "AST+REB",
         }.get(pred.prop_type, ""),
         "prop_line": pred.prop_line,
         "season_avg": round(pred.season_avg, 1),
@@ -132,4 +146,4 @@ def analyze():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=int(os.environ.get("PORT", 5000)))

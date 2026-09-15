@@ -15,7 +15,7 @@ def calculate_matchup_factor(
     avg_ortg = league_avg.get("ortg", 114.0)
     avg_drtg = league_avg.get("drtg", 114.0)
 
-    if prop_type in ("points", "3pm", "pra"):
+    if prop_type in ("points", "3pm", "pra", "fgm", "fga", "3pa"):
         # Offensive matchup: team ORTG vs opponent DRTG
         team_off_edge = player_team.ortg / max(avg_ortg, 1)
         opp_def_weakness = avg_drtg / max(opponent_defense.drtg, 1)
@@ -57,6 +57,20 @@ def calculate_matchup_factor(
             note = f"- Opponent limits assists to {opp_apg:.1f}/game"
         else:
             note = f"~ Neutral assist matchup"
+
+    elif prop_type == "turnovers":
+        # Opponent's ball pressure/forced-turnover rate vs league average.
+        # Higher opponent pressure -> more expected turnovers (factor > 1).
+        avg_topg = 13.5  # league average team turnovers forced per game
+        factor = opponent_defense.opp_topg / max(avg_topg, 1) if opponent_defense.opp_topg > 0 else 1.0
+        factor = max(0.85, min(factor, 1.15))
+
+        if factor > 1.03:
+            note = f"+ High-pressure defense: opponent forces {opponent_defense.opp_topg:.1f} TOV/game"
+        elif factor < 0.97:
+            note = f"- Low-pressure defense: opponent forces only {opponent_defense.opp_topg:.1f} TOV/game"
+        else:
+            note = f"~ Neutral turnover matchup"
     else:
         factor = 1.0
         note = "~ Matchup data not applicable"

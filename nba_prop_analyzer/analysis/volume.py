@@ -14,12 +14,16 @@ def calculate_volume_adjustment(
     """
     if prop_type in ("points", "pra"):
         return _scoring_volume(player, player_team, opponent_defense, league_avg)
-    elif prop_type == "3pm":
+    elif prop_type in ("fgm", "fga"):
+        return _fg_volume(player, player_team, opponent_defense, league_avg)
+    elif prop_type in ("3pm", "3pa"):
         return _three_point_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type == "rebounds":
         return _rebound_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type == "assists":
         return _assist_volume(player, player_team, opponent_defense, league_avg)
+    elif prop_type == "turnovers":
+        return _turnover_volume(player, opponent_defense)
     return 1.0, "~ No volume adjustment"
 
 
@@ -90,6 +94,48 @@ def _rebound_volume(
         note = f"- Rebound volume down: opponent limits to {opp.opp_rpg:.1f} RPG"
     else:
         note = f"~ Rebound volume neutral"
+    return factor, note
+
+
+def _fg_volume(
+    player: PlayerStats,
+    player_team: TeamProfile,
+    opp: OpponentDefense,
+    league_avg: dict,
+) -> tuple[float, str]:
+    """Shot-attempt volume: opponent's FGA allowed vs league average, weighted by the player's shot share."""
+    avg_fga = league_avg.get("fga", 88.0)
+    opp_fga_ratio = opp.opp_fga / max(avg_fga, 1) if opp.opp_fga > 0 else 1.0
+
+    player_share = player.fga_pg / max(player_team.fga, 1) if player_team.fga > 0 else 0.15
+
+    factor = 1.0 + (opp_fga_ratio - 1.0) * player_share * 2
+    factor = max(0.92, min(factor, 1.08))
+
+    if factor > 1.02:
+        note = f"+ Shot volume boost: opponent allows {opp.opp_fga:.1f} FGA/game (player takes {player_share:.1%} of team shots)"
+    elif factor < 0.98:
+        note = f"- Shot volume drop: opponent limits shots to {opp.opp_fga:.1f} FGA/game"
+    else:
+        note = f"~ Shot volume neutral: opponent FGA allowed near average"
+    return factor, note
+
+
+def _turnover_volume(
+    player: PlayerStats,
+    opp: OpponentDefense,
+) -> tuple[float, str]:
+    """Turnover volume driven by opponent's ball pressure (forced-turnover rate), not team shot share."""
+    avg_topg = 13.5  # league average team turnovers forced per game
+    factor = opp.opp_topg / max(avg_topg, 1) if opp.opp_topg > 0 else 1.0
+    factor = max(0.88, min(factor, 1.12))
+
+    if factor > 1.03:
+        note = f"+ Opponent forces extra turnovers: {opp.opp_topg:.1f} TOV/game allowed"
+    elif factor < 0.97:
+        note = f"- Opponent avoids forcing turnovers: {opp.opp_topg:.1f} TOV/game allowed"
+    else:
+        note = f"~ Turnover volume neutral"
     return factor, note
 
 

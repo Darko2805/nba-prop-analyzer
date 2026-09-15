@@ -34,6 +34,7 @@ class GameLog:
     fgm: int
     fta: int
     ftm: int
+    tov: int = 0
 
 
 def _rate_limit():
@@ -167,6 +168,7 @@ def fetch_game_logs(player_name: str, season_year: Optional[int] = None) -> List
             fgm=int(cells.get("fg", 0)),
             fta=int(cells.get("fta", 0)),
             ftm=int(cells.get("ft", 0)),
+            tov=int(cells.get("tov") or 0),
         )
         games.append(game)
 
@@ -273,4 +275,18 @@ def get_stat_from_games(games: List[GameLog], prop_type: str) -> List[float]:
             values.append(float(g.fg3))
         elif prop_type == "pra":
             values.append(float(g.pts + g.reb + g.ast))
+        elif prop_type == "fgm":
+            values.append(float(g.fgm))
+        elif prop_type == "fga":
+            values.append(float(g.fga))
+        elif prop_type == "3pa":
+            values.append(float(g.fg3a))
+        elif prop_type == "turnovers":
+            values.append(float(g.tov))
+        elif prop_type == "pts_ast":
+            values.append(float(g.pts + g.ast))
+        elif prop_type == "pts_reb":
+            values.append(float(g.pts + g.reb))
+        elif prop_type == "ast_reb":
+            values.append(float(g.ast + g.reb))
     return values

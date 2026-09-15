@@ -19,11 +19,18 @@ Examples:
   python -m nba_prop_analyzer "Jayson Tatum" MIL rebounds 8.5 --trend 0.95
 
 Prop Types:
-  points    - Total points scored
-  rebounds  - Total rebounds
-  assists   - Total assists
-  3pm       - Three-pointers made
-  pra       - Points + Rebounds + Assists combined
+  points     - Total points scored
+  rebounds   - Total rebounds
+  assists    - Total assists
+  3pm        - Three-pointers made
+  pra        - Points + Rebounds + Assists combined
+  fgm        - Field goals made
+  fga        - Field goals attempted
+  3pa        - Three-pointers attempted
+  turnovers  - Turnovers
+  pts_ast    - Points + Assists combined
+  pts_reb    - Points + Rebounds combined
+  ast_reb    - Assists + Rebounds combined
 
 Trend Override:
   --trend 1.05  = player is on a +5% hot streak

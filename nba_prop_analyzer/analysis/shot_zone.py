@@ -34,7 +34,7 @@ def calculate_shot_zone_exploitation(
     Factor range: 0.82 (opponent locks every zone) – 1.22 (multiple zone gaps exploited).
     Steps contain '+'/'-'/'→' prefixed strings for the UI.
     """
-    if prop_type not in ("points", "pra", "3pm"):
+    if prop_type not in ("points", "pra", "3pm", "fgm", "fga", "3pa"):
         return 1.0, ["~ Zone analysis not applicable for this prop"]
 
     steps: list[str] = []
@@ -135,8 +135,8 @@ def calculate_shot_zone_exploitation(
             )
 
     # ── Final factor ─────────────────────────────────────────────────────
-    if prop_type == "3pm":
-        # For 3PM props, weight three_gap much more heavily
+    if prop_type in ("3pm", "3pa"):
+        # For 3-point props (makes or attempts), weight three_gap much more heavily
         base_factor = 1.0 + three_gap * 1.0 + weighted_gap * 0.5
     else:
         # Amplify: weighted_gap of 0.05 → ~+10% factor

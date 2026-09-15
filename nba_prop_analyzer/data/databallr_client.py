@@ -101,6 +101,7 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
             ppg=points / max(gp, 1),
             rpg=_safe_float(t, "TotalRebounds", 0) / max(gp, 1) if t.get("TotalRebounds") else 44.0,
             apg=_safe_float(t, "Assists", 0) / max(gp, 1) if t.get("Assists") else 25.0,
+            fga=total_fga / max(gp, 1),
         )
 
     # Build opponent defense profiles
@@ -159,6 +160,7 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
             opp_short_mid_freq=_safe_float(o, "ShortMidRangeFrequency"),
             opp_short_mid_acc=_safe_float(o, "ShortMidRangeAccuracy"),
             opp_three_freq=fg3a_total / max(total_fga, 1) if total_fga > 0 else 0.0,
+            opp_fga=total_fga / max(gp, 1),
         )
 
     # Compute league averages from team data
@@ -167,6 +169,7 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
         league_avg["ortg"] = sum(t.ortg for t in team_profiles.values()) / len(team_profiles)
         league_avg["drtg"] = sum(t.drtg for t in team_profiles.values()) / len(team_profiles)
         league_avg["ppg"] = sum(t.ppg for t in team_profiles.values()) / len(team_profiles)
+        league_avg["fga"] = sum(t.fga for t in team_profiles.values()) / len(team_profiles)
 
     result = (team_profiles, opponent_defenses, league_avg)
     cache.set(f"teams_{year}", result)
