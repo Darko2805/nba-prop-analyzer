@@ -174,6 +174,86 @@ def fetch_game_logs(player_name: str, season_year: Optional[int] = None) -> List
     return games
 
 
+def fetch_shot_zone_profile(player_name: str, season_year: Optional[int] = None) -> dict:
+    """
+    Per-player shot-distance frequency breakdown, from the player's bbref
+    shooting-splits page. Returns {} if the player/page/section isn't found —
+    callers should treat that as "no data" and fall back accordingly.
+    """
+    if season_year is None:
+        season_year = _get_season_year()
+
+    cache_key = f"bbref_shotzone_{player_name}_{season_year}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    player_id = _build_player_id(player_name)
+    if not player_id:
+        return {}
+
+    first_letter = player_id[0]
+    url = f"https://www.basketball-reference.com/players/{first_letter}/{player_id}/shooting/{season_year}"
+
+    _rate_limit()
+
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+        if resp.status_code == 429:
+            time.sleep(10)
+            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return {}
+    except requests.RequestException:
+        return {}
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    table = soup.find("table", id="shooting")
+    if table is None:
+        return {}
+
+    zone_fga = {}
+    current_section = None
+    for row in table.find_all("tr"):
+        cells = {}
+        for el in row.find_all(["td", "th"]):
+            stat = el.get("data-stat", "")
+            cells[stat] = el.get_text(strip=True)
+
+        if cells.get("split_value") == "Value":
+            continue  # section header row
+
+        split_id = cells.get("split_id", "")
+        if split_id:
+            current_section = split_id
+
+        if current_section == "Shot Distance":
+            label = cells.get("split_value", "")
+            fga_str = cells.get("fga", "")
+            if not label or not fga_str:
+                continue
+            try:
+                zone_fga[label] = float(fga_str)
+            except ValueError:
+                continue
+
+    total = sum(zone_fga.values())
+    if total <= 0:
+        return {}
+
+    at_rim = zone_fga.get("At Rim", 0.0)
+    short_mid = zone_fga.get("3 to <10 ft", 0.0)
+    long_mid = zone_fga.get("10 to <16 ft", 0.0) + zone_fga.get("16 ft to <3-pt", 0.0)
+
+    profile = {
+        "at_rim_freq": at_rim / total,
+        "short_mid_freq": short_mid / total,
+        "mid_range_freq": long_mid / total,
+    }
+    cache.set(cache_key, profile)
+    return profile
+
+
 def get_recent_games(games: List[GameLog], n: int = 10) -> List[GameLog]:
     """Return the last N games from the game log."""
     return games[-n:] if len(games) >= n else games

@@ -1,5 +1,4 @@
 CURRENT_SEASON_YEAR = 2026
-DATABALLR_PLAYER_URL = "https://api.databallr.com/api/supabase/player_stats_with_metrics"
 DATABALLR_TEAM_URL = "https://api.databallr.com/api/supabase/team_stats"
 ESPN_OPPONENT_STATS_URL = "https://www.espn.com/nba/stats/team/_/view/opponent"
 ESPN_TEAMS_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"

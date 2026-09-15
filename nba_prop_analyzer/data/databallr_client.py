@@ -1,9 +1,7 @@
 import requests
-from ..config import (
-    CURRENT_SEASON_YEAR, DATABALLR_PLAYER_URL, DATABALLR_TEAM_URL, REQUEST_HEADERS
-)
+from ..config import CURRENT_SEASON_YEAR, DATABALLR_TEAM_URL, REQUEST_HEADERS
 from ..cache import cache
-from .models import PlayerStats, TeamProfile, OpponentDefense
+from .models import TeamProfile, OpponentDefense
 from .team_mapping import normalize_team
 
 
@@ -25,93 +23,6 @@ def _safe_int(data: dict, key: str, default: int = 0) -> int:
         return int(val)
     except (ValueError, TypeError):
         return default
-
-
-def fetch_all_players(year: int = CURRENT_SEASON_YEAR) -> list[PlayerStats]:
-    cached = cache.get(f"players_{year}")
-    if cached is not None:
-        return cached
-
-    params = {
-        "year": year,
-        "playoffs": 0,
-        "min_minutes": 100,
-        "limit": 600,
-    }
-    resp = requests.get(DATABALLR_PLAYER_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
-    resp.raise_for_status()
-    raw = resp.json()
-
-    players = []
-    for p in raw:
-        mpg = _safe_float(p, "MPG")
-        if mpg == 0:
-            continue
-
-        three_pa_100 = _safe_float(p, "3PA_100")
-        three_pct = _safe_float(p, "3P_PERC")
-        # per-100 is per 100 possessions while on court; scale to per-game
-        three_pa_pg = three_pa_100 * mpg / 48.0 if three_pa_100 else 0
-        three_pm_pg = three_pa_pg * three_pct if three_pct else 0
-
-        team_raw = p.get("TeamAbbreviation", p.get("Team", ""))
-        team_abbr = normalize_team(str(team_raw)) or str(team_raw)
-
-        tsa100 = max(_safe_float(p, "TSA100", 1), 1)
-        at_rim_fga100 = _safe_float(p, "d_AtRimFGA_Per100")
-        long_mid_fga100 = _safe_float(p, "d_LongMidRangeFGA_Per100")
-        short_mid_fga100 = _safe_float(p, "d_ShortMidRangeFGA_Per100")
-
-        # Zone accuracy: try multiple field name patterns
-        at_rim_acc = (
-            _safe_float(p, "d_AtRimAccuracy")
-            or _safe_float(p, "AtRimAccuracy")
-            or _safe_float(p, "d_AtRimFG_Pct")
-        )
-        short_mid_acc = (
-            _safe_float(p, "d_ShortMidRangeAccuracy")
-            or _safe_float(p, "ShortMidRangeAccuracy")
-        )
-        long_mid_acc = (
-            _safe_float(p, "d_LongMidRangeAccuracy")
-            or _safe_float(p, "LongMidRangeAccuracy")
-        )
-
-        player = PlayerStats(
-            name=p.get("Name", p.get("player_name", "Unknown")),
-            team_abbr=team_abbr,
-            position=p.get("Pos2", p.get("Position", "")),
-            games_played=_safe_int(p, "GamesPlayed"),
-            mpg=mpg,
-            ppg=_safe_float(p, "basic_PPG"),
-            apg=_safe_float(p, "basic_APG"),
-            rpg=_safe_float(p, "basic_REB"),
-            orpg=_safe_float(p, "basic_ORB"),
-            drpg=_safe_float(p, "basic_DRB"),
-            three_pm_pg=three_pm_pg,
-            three_pa_pg=three_pa_pg,
-            three_pct=three_pct,
-            three_point_rate=_safe_float(p, "3PR"),
-            ft_rate=_safe_float(p, "FTR"),
-            fta_per100=_safe_float(p, "FTA_100"),
-            ts_pct=_safe_float(p, "TS_pct"),
-            tsa_per100=_safe_float(p, "TSA100"),
-            offensive_archetype=p.get("Offensive Archetype", ""),
-            at_rim_freq=at_rim_fga100 / tsa100,
-            mid_range_freq=long_mid_fga100 / tsa100,
-            short_mid_freq=short_mid_fga100 / tsa100,
-            at_rim_acc=at_rim_acc,
-            short_mid_acc=short_mid_acc,
-            long_mid_acc=long_mid_acc,
-            o_dpm=_safe_float(p, "o_dpm"),
-            d_dpm=_safe_float(p, "d_dpm"),
-            ortg_on=_safe_float(p, "rortg_on"),
-            drtg_on=_safe_float(p, "rdrtg_on"),
-        )
-        players.append(player)
-
-    cache.set(f"players_{year}", players)
-    return players
 
 
 def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[

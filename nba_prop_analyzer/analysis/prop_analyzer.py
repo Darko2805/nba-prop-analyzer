@@ -1,6 +1,7 @@
-from ..data.databallr_client import fetch_all_players, fetch_team_data, find_player
+from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
-from ..data.bbref_scraper import fetch_game_logs, get_stat_from_games, GameLog
+from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
+from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent_zone_defense
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team
 from .matchup import calculate_matchup_factor
@@ -20,9 +21,9 @@ class PropAnalyzer:
         self.tr_stats = {}
 
     def load_data(self):
-        print("  Fetching player stats from databallr...")
+        print("  Fetching player stats from basketball-reference...")
         try:
-            self.players = fetch_all_players()
+            self.players = fetch_all_players_per_game()
             print(f"  Loaded {len(self.players)} players")
         except Exception as e:
             print(f"  Player stats fetch failed ({e}), continuing with no player data")
@@ -46,9 +47,26 @@ class PropAnalyzer:
 
         self._merge_teamrankings_data()
 
+        print("  Fetching opponent zone defense from basketball-reference...")
+        try:
+            self._merge_bbref_zone_defense(fetch_opponent_zone_defense())
+        except Exception as e:
+            print(f"  Opponent zone defense fetch failed ({e}), short/long mid-range gaps will use league average")
+
     def is_ready(self) -> bool:
         """False when a required upstream data source failed to load."""
         return bool(self.players) and bool(self.team_profiles)
+
+    def _merge_bbref_zone_defense(self, zone_defense: dict) -> None:
+        """Fill in opponent short/long mid-range defense (at-rim and 3PT already come from databallr/TeamRankings)."""
+        for abbr, zone in zone_defense.items():
+            opp = self.opponent_defenses.get(abbr)
+            if opp is None:
+                continue
+            opp.opp_short_mid_freq = zone["short_mid_freq"]
+            opp.opp_short_mid_acc = zone["short_mid_acc"]
+            opp.opp_long_mid_freq = zone["long_mid_freq"]
+            opp.opp_long_mid_acc = zone["long_mid_acc"]
 
     def _merge_teamrankings_data(self):
         """Overwrite opponent defense fields with TeamRankings values (more accurate current-season data)."""
@@ -86,8 +104,19 @@ class PropAnalyzer:
         if player is None:
             raise ValueError(
                 f"Player '{player_name}' not found. "
-                f"Try the exact name as shown on databallr."
+                f"Try the exact name as shown on basketball-reference."
             )
+
+        # Lazily fetch shot-zone frequency (bbref only exposes this per-player, not in bulk).
+        # On failure, leave zeros — shot_zone.py falls back to estimating from three_point_rate.
+        try:
+            zone_profile = fetch_shot_zone_profile(player.name)
+            if zone_profile:
+                player.at_rim_freq = zone_profile["at_rim_freq"]
+                player.short_mid_freq = zone_profile["short_mid_freq"]
+                player.mid_range_freq = zone_profile["mid_range_freq"]
+        except Exception as e:
+            print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
 
         # Resolve opponent
         opp_abbr = normalize_team(opponent_abbr)
