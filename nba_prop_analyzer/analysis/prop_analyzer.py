@@ -5,6 +5,7 @@ from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_s
 from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent_zone_defense
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team
+from ..data import snapshot_store
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
@@ -22,13 +23,18 @@ class PropAnalyzer:
         self.tr_stats = {}
 
     def load_data(self):
-        print("  Fetching player stats from basketball-reference...")
-        try:
-            self.players = fetch_all_players_per_game()
-            print(f"  Loaded {len(self.players)} players")
-        except Exception as e:
-            print(f"  Player stats fetch failed ({e}), continuing with no player data")
-            self.players = []
+        print("  Loading player stats snapshot...")
+        self.players = snapshot_store.load_players()
+        if self.players:
+            print(f"  Loaded {len(self.players)} players from snapshot")
+        else:
+            print("  No snapshot found, fetching player stats live from basketball-reference...")
+            try:
+                self.players = fetch_all_players_per_game()
+                print(f"  Loaded {len(self.players)} players")
+            except Exception as e:
+                print(f"  Player stats fetch failed ({e}), continuing with no player data")
+                self.players = []
 
         print("  Fetching team stats from databallr...")
         try:
@@ -48,11 +54,18 @@ class PropAnalyzer:
 
         self._merge_teamrankings_data()
 
-        print("  Fetching opponent zone defense from basketball-reference...")
-        try:
-            self._merge_bbref_zone_defense(fetch_opponent_zone_defense())
-        except Exception as e:
-            print(f"  Opponent zone defense fetch failed ({e}), short/long mid-range gaps will use league average")
+        print("  Loading opponent zone defense snapshot...")
+        zone_defense = snapshot_store.load_opponent_zone_defense()
+        if zone_defense:
+            print(f"  Loaded zone defense for {len(zone_defense)} teams from snapshot")
+        else:
+            print("  No snapshot found, fetching opponent zone defense live from basketball-reference...")
+            try:
+                zone_defense = fetch_opponent_zone_defense()
+            except Exception as e:
+                print(f"  Opponent zone defense fetch failed ({e}), short/long mid-range gaps will use league average")
+                zone_defense = {}
+        self._merge_bbref_zone_defense(zone_defense)
 
     def is_ready(self) -> bool:
         """False when a required upstream data source failed to load."""
@@ -108,16 +121,21 @@ class PropAnalyzer:
                 f"Try the exact name as shown on basketball-reference."
             )
 
-        # Lazily fetch shot-zone frequency (bbref only exposes this per-player, not in bulk).
-        # On failure, leave zeros — shot_zone.py falls back to estimating from three_point_rate.
-        try:
-            zone_profile = fetch_shot_zone_profile(player.name)
-            if zone_profile:
-                player.at_rim_freq = zone_profile["at_rim_freq"]
-                player.short_mid_freq = zone_profile["short_mid_freq"]
-                player.mid_range_freq = zone_profile["mid_range_freq"]
-        except Exception as e:
-            print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
+        # Shot-zone frequency: snapshot first (this is what production relies on —
+        # bbref blocks Render's IP), live fetch as a fallback for anyone not in the
+        # rotation-player snapshot. On failure, leave zeros — shot_zone.py falls
+        # back to estimating from three_point_rate.
+        zone_profile = snapshot_store.load_shot_zone(player.name)
+        if not zone_profile:
+            try:
+                zone_profile = fetch_shot_zone_profile(player.name)
+            except Exception as e:
+                print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
+                zone_profile = None
+        if zone_profile:
+            player.at_rim_freq = zone_profile["at_rim_freq"]
+            player.short_mid_freq = zone_profile["short_mid_freq"]
+            player.mid_range_freq = zone_profile["mid_range_freq"]
 
         # Resolve opponent
         opp_abbr = normalize_team(opponent_abbr)
@@ -140,17 +158,21 @@ class PropAnalyzer:
         if trend_override != 1.0:
             set_manual_trend(player.name, trend_override)
 
-        # Fetch game logs from basketball-reference
-        print(f"  Fetching game logs from basketball-reference for {player.name}...")
-        game_logs = []
-        try:
-            game_logs = fetch_game_logs(player.name)
-            if game_logs:
-                print(f"  Loaded {len(game_logs)} game logs")
-            else:
-                print("  No game logs found (will use season averages)")
-        except Exception as e:
-            print(f"  Game log fetch failed ({e}), using season averages")
+        # Game logs: snapshot first, live fetch as a fallback (see shot-zone note above).
+        game_logs = snapshot_store.load_game_logs(player.name)
+        if game_logs is not None:
+            print(f"  Loaded {len(game_logs)} game logs from snapshot")
+        else:
+            print(f"  Fetching game logs from basketball-reference for {player.name}...")
+            game_logs = []
+            try:
+                game_logs = fetch_game_logs(player.name)
+                if game_logs:
+                    print(f"  Loaded {len(game_logs)} game logs")
+                else:
+                    print("  No game logs found (will use season averages)")
+            except Exception as e:
+                print(f"  Game log fetch failed ({e}), using season averages")
 
         # Get game log values for variance and trend (combo types sum the two
         # component stats per game, giving real joint variance/trend rather
