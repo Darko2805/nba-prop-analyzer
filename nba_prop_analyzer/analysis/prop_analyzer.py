@@ -21,12 +21,20 @@ class PropAnalyzer:
 
     def load_data(self):
         print("  Fetching player stats from databallr...")
-        self.players = fetch_all_players()
-        print(f"  Loaded {len(self.players)} players")
+        try:
+            self.players = fetch_all_players()
+            print(f"  Loaded {len(self.players)} players")
+        except Exception as e:
+            print(f"  Player stats fetch failed ({e}), continuing with no player data")
+            self.players = []
 
         print("  Fetching team stats from databallr...")
-        self.team_profiles, self.opponent_defenses, self.league_avg = fetch_team_data()
-        print(f"  Loaded {len(self.team_profiles)} teams")
+        try:
+            self.team_profiles, self.opponent_defenses, self.league_avg = fetch_team_data()
+            print(f"  Loaded {len(self.team_profiles)} teams")
+        except Exception as e:
+            print(f"  Team stats fetch failed ({e}), continuing with no team data")
+            self.team_profiles, self.opponent_defenses, self.league_avg = {}, {}, {}
 
         print("  Fetching opponent stats from TeamRankings...")
         try:
@@ -34,8 +42,13 @@ class PropAnalyzer:
             print(f"  Loaded TeamRankings data for {len(self.tr_stats)} teams")
         except Exception as e:
             print(f"  TeamRankings scraping failed ({e}), continuing with databallr only")
+            self.tr_stats = {}
 
         self._merge_teamrankings_data()
+
+    def is_ready(self) -> bool:
+        """False when a required upstream data source failed to load."""
+        return bool(self.players) and bool(self.team_profiles)
 
     def _merge_teamrankings_data(self):
         """Overwrite opponent defense fields with TeamRankings values (more accurate current-season data)."""

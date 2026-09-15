@@ -28,6 +28,11 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    if not analyzer.is_ready():
+        return jsonify({
+            "error": "NBA stats data is temporarily unavailable from our data provider. Please try again later."
+        }), 503
+
     data = request.get_json()
     player_name = data.get("player", "").strip()
     opponent = data.get("opponent", "").strip().upper()
