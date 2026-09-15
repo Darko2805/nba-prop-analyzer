@@ -309,6 +309,8 @@ header p {
 
 .zone-shape {
   fill: transparent;
+  stroke: var(--bg);
+  stroke-width: 1.5;
   transition: fill 0.3s, fill-opacity 0.3s;
 }
 
@@ -348,6 +350,22 @@ header p {
 .court-legend-text strong {
   color: var(--text);
 }
+
+.court-rank-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+  background: var(--card-border);
+  color: var(--text-muted);
+  vertical-align: middle;
+}
+
+.court-rank-badge.best { background: var(--green-bg); color: var(--green); }
+.court-rank-badge.worst { background: var(--red-bg); color: var(--red); }
 
 .court-hint {
   margin-top: 0.75rem;
