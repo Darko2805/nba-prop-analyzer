@@ -10,6 +10,7 @@ through the daily snapshot pipeline.
 NBA.com's RSS feed is defunct (redirects to the homepage), so CBS Sports
 fills the third slot instead of NBA.com specifically.
 """
+import time
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 
@@ -70,14 +71,25 @@ def fetch_news(force: bool = False) -> list[dict]:
 
     all_items = []
     for source, url in _FEEDS:
-        try:
-            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
-            resp.raise_for_status()
-            source_items = _parse_feed(source, resp.text)
-            source_items.sort(key=lambda x: x["pub_ts"], reverse=True)
-            all_items.extend(source_items[:_MAX_PER_SOURCE])
-        except Exception as e:
-            print(f"  News fetch failed for {source} ({e}), skipping")
+        source_items = []
+        for attempt in range(2):  # some feeds occasionally soft-throttle with an empty 200/202 body
+            try:
+                resp = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
+                resp.raise_for_status()
+                source_items = _parse_feed(source, resp.text)
+                if source_items:
+                    break
+                if attempt == 0:
+                    time.sleep(2)
+            except Exception as e:
+                print(f"  News fetch failed for {source} ({e}), {'retrying' if attempt == 0 else 'skipping'}")
+                if attempt == 0:
+                    time.sleep(2)
+
+        if not source_items:
+            print(f"  No items parsed for {source} after retry")
+        source_items.sort(key=lambda x: x["pub_ts"], reverse=True)
+        all_items.extend(source_items[:_MAX_PER_SOURCE])
 
     all_items.sort(key=lambda x: x["pub_ts"], reverse=True)
     result = all_items[:_MAX_ITEMS]
