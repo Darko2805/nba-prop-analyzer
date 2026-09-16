@@ -27,6 +27,7 @@ _FEEDS = [
 _CACHE_KEY = "nba_news_feed"
 _CACHE_TTL_SECONDS = 20 * 60
 _MAX_ITEMS = 18
+_MAX_PER_SOURCE = 6  # keeps one high-frequency feed (e.g. Yahoo) from crowding out the others
 
 
 def _parse_feed(source: str, xml_text: str) -> list[dict]:
@@ -72,7 +73,9 @@ def fetch_news(force: bool = False) -> list[dict]:
         try:
             resp = requests.get(url, headers=REQUEST_HEADERS, timeout=10)
             resp.raise_for_status()
-            all_items.extend(_parse_feed(source, resp.text))
+            source_items = _parse_feed(source, resp.text)
+            source_items.sort(key=lambda x: x["pub_ts"], reverse=True)
+            all_items.extend(source_items[:_MAX_PER_SOURCE])
         except Exception as e:
             print(f"  News fetch failed for {source} ({e}), skipping")
 
