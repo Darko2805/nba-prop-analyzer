@@ -4,23 +4,33 @@ Lightweight passwordless auth on top of Supabase Auth (GoTrue) + Postgres.
 Why Supabase: Render's free-tier disk doesn't survive a restart (not just
 deploys — ordinary idle spin-down/spin-up wipes it too), so user accounts
 need to live in a real external database. Supabase gives us that plus a
-built-in magic-link email flow for free, so we don't have to run our own
-SMTP or build email verification from scratch.
+built-in email OTP flow for free, so we don't have to run our own SMTP or
+build email verification from scratch.
 
-Flow (server-side only, no client JS/SDK needed):
+Flow:
   1. User submits email + name -> request_magic_link() calls Supabase's
-     /auth/v1/otp, which emails them a link. The name travels along as
-     user metadata so it's available once they verify.
-  2. Supabase's email template must point the link at OUR callback with
-     `token_hash` and `type` as query params (not the implicit-flow
-     fragment tokens, which never reach the server) — see AUTH_SETUP.md.
-  3. They click it -> Flask's /auth/callback calls verify_magic_link(),
-     which exchanges the token_hash for a real session server-side and
-     upserts a row in `profiles` (tier defaults to "free").
-  4. We store just the user id + email + name in the Flask session cookie
-     (signed, not a JWT) — Supabase's own access/refresh tokens aren't
-     needed after that point since we're not calling any RLS-protected
-     endpoints as the user; all profile writes go through the service key.
+     /auth/v1/otp, which emails them a sign-in link. The name travels
+     along as user metadata so it's available once they verify.
+  2. Supabase's default email template (the free hosted mailer doesn't
+     allow customizing it without setting up custom SMTP — a later
+     upgrade) redirects to our `email_redirect_to` URL with the session
+     in a URL *fragment* (`#access_token=...`), not a query param.
+     Fragments never reach the server, so /auth/callback serves a tiny
+     page whose JS reads window.location.hash and POSTs the access_token
+     to /auth/complete-login.
+  3. get_user_from_token() calls /auth/v1/user with that access token to
+     fetch the Supabase user (id, email, user_metadata.name). We upsert
+     a row in `profiles` (tier defaults to "free") and store just the
+     user id/email/name/tier in the signed Flask session cookie —
+     Supabase's access/refresh tokens aren't kept after that, since all
+     profile writes go through the service key, not RLS.
+
+Known tradeoff: some email clients (notably Gmail's link safety
+pre-scan) occasionally open the link before the person clicks it,
+burning the single-use token — if that happens the fix is just to
+request a new one. Switching to a visible OTP code instead would avoid
+this, but requires custom SMTP to show the code in the email at all
+(the default hosted mailer's template only includes the link).
 """
 from __future__ import annotations
 
@@ -57,28 +67,22 @@ def request_magic_link(email: str, name: str, redirect_to: str) -> None:
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:
-        raise AuthError(f"Supabase rejected the magic-link request ({resp.status_code}): {resp.text}")
+        raise AuthError(f"Supabase rejected the sign-in request ({resp.status_code}): {resp.text}")
 
 
-def verify_magic_link(token_hash: str, otp_type: str = "email") -> dict:
+def get_user_from_token(access_token: str) -> dict:
     """
-    Exchanges the token_hash from the email link for a session, server-side.
-    Returns the Supabase user dict ({id, email, user_metadata: {name}, ...}).
-    Raises AuthError on an invalid/expired link.
+    Resolves the Supabase user for an access token pulled from the magic
+    link's redirect fragment by the browser. Raises AuthError if invalid.
     """
-    resp = requests.post(
-        f"{SUPABASE_URL}/auth/v1/verify",
-        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
-        json={"type": otp_type, "token_hash": token_hash},
+    resp = requests.get(
+        f"{SUPABASE_URL}/auth/v1/user",
+        headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {access_token}"},
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:
-        raise AuthError(f"That sign-in link is invalid or expired ({resp.status_code}): {resp.text}")
-    payload = resp.json()
-    user = payload.get("user")
-    if not user:
-        raise AuthError("Supabase didn't return a user for this link.")
-    return user
+        raise AuthError("That sign-in link is invalid or expired — request a new one.")
+    return resp.json()
 
 
 def upsert_profile(user_id: str, email: str, name: str) -> dict:

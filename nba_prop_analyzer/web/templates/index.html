@@ -25,7 +25,7 @@
 
   {% if not current_user and auth_configured %}
   <div class="signup-card" id="signupCard" style="display:none">
-    <p class="signup-hint">No password needed — enter your email and name, and we'll send you a one-click sign-in link.</p>
+    <p class="signup-hint">No password needed — enter your email and name, and we'll email you a one-click sign-in link. Open it on this device/browser.</p>
     <div class="form-row-2">
       <div class="form-group">
         <label>Name</label>
@@ -214,13 +214,18 @@ if (signInToggle) {
 }
 
 const signupSubmit = document.getElementById('signupSubmit');
+const signupMsg = document.getElementById('signupMsg');
+
+function setSignupMsg(text, cls) {
+  signupMsg.textContent = text;
+  signupMsg.className = 'signup-msg' + (cls ? ' ' + cls : '');
+}
+
 if (signupSubmit) {
   signupSubmit.addEventListener('click', async () => {
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim();
-    const msg = document.getElementById('signupMsg');
-    msg.textContent = '';
-    msg.className = 'signup-msg';
+    setSignupMsg('');
 
     signupSubmit.disabled = true;
     signupSubmit.textContent = 'Sending...';
@@ -232,11 +237,9 @@ if (signupSubmit) {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
-      msg.textContent = data.message;
-      msg.classList.add('success');
+      setSignupMsg(data.message, 'success');
     } catch (err) {
-      msg.textContent = err.message;
-      msg.classList.add('error');
+      setSignupMsg(err.message, 'error');
     } finally {
       signupSubmit.disabled = false;
       signupSubmit.textContent = 'Send sign-in link';

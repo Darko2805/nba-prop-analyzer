@@ -176,26 +176,36 @@ def auth_signup():
     except auth.AuthError as e:
         return jsonify({"error": str(e)}), 502
 
-    return jsonify({"message": f"Check {email} for a sign-in link."})
+    return jsonify({"message": f"We emailed a sign-in link to {email}. Open it on this device."})
 
 
 @app.route("/auth/callback")
 def auth_callback():
-    token_hash = request.args.get("token_hash")
-    otp_type = request.args.get("type", "email")
-    if not token_hash:
-        return render_template("auth_result.html", success=False,
-                                message="That sign-in link is missing its token — try requesting a new one."), 400
+    # The session tokens arrive in the URL fragment (#access_token=...), which
+    # never reaches the server — this page's own JS reads it and posts it to
+    # /auth/complete-login. See auth.py's module docstring for why.
+    return render_template("auth_callback.html")
+
+
+@app.route("/auth/complete-login", methods=["POST"])
+def auth_complete_login():
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    access_token = data.get("access_token")
+    if not access_token:
+        return jsonify({"error": "Missing access token."}), 400
 
     try:
-        user = auth.verify_magic_link(token_hash, otp_type)
+        user = auth.get_user_from_token(access_token)
         name = (user.get("user_metadata") or {}).get("name", "")
         profile = auth.upsert_profile(user["id"], user["email"], name)
         auth.log_in_session(profile)
     except auth.AuthError as e:
-        return render_template("auth_result.html", success=False, message=str(e)), 400
+        return jsonify({"error": str(e)}), 400
 
-    return redirect(url_for("index"))
+    return jsonify({"name": profile.get("name"), "tier": profile.get("tier")})
 
 
 @app.route("/auth/logout", methods=["POST"])

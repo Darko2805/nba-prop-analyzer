@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Prop Analyzer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>NBA</span> Prop Analyzer</h1>
+  </header>
+  <div class="section-card" style="text-align:center">
+    <h3 id="statusTitle">Signing you in…</h3>
+    <p id="statusMsg" style="color: var(--text-muted); margin-top: 0.5rem;"></p>
+    <a href="/" id="backLink" class="btn" style="display:none; text-decoration:none; margin-top:1rem; max-width:200px;">Back to app</a>
+  </div>
+</div>
+
+<script>
+function showResult(title, msg, isError) {
+  document.getElementById('statusTitle').textContent = title;
+  document.getElementById('statusMsg').textContent = msg;
+  document.getElementById('statusMsg').style.color = isError ? 'var(--red)' : 'var(--text-muted)';
+  document.getElementById('backLink').style.display = 'inline-block';
+}
+
+const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+const params = new URLSearchParams(hash);
+const accessToken = params.get('access_token');
+const error = params.get('error_description') || params.get('error');
+
+if (error) {
+  showResult('Sign-in failed', decodeURIComponent(error.replace(/\+/g, ' ')) + ' — request a new link.', true);
+} else if (!accessToken) {
+  showResult('Sign-in failed', 'No sign-in token found in this link — request a new one.', true);
+} else {
+  fetch('/auth/complete-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken }),
+  })
+    .then(async (resp) => {
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+      window.location.replace('/');
+    })
+    .catch((err) => showResult('Sign-in failed', err.message, true));
+}
+</script>
+</body>
+</html>
