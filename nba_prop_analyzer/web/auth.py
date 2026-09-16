@@ -73,6 +73,8 @@ def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
         body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
         if "already registered" in body.get("msg", "").lower() or body.get("error_code") == "user_already_exists":
             raise AuthError("An account with that email already exists — try logging in instead.")
+        if body.get("error_code") == "over_email_send_rate_limit":
+            raise AuthError("We're sending a lot of sign-up emails right now — please try again in a few minutes.")
         raise AuthError(f"Supabase rejected the sign-up ({resp.status_code}): {resp.text}")
 
 
