@@ -6,13 +6,20 @@ _repo_root = os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.config import PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import ALL_TEAM_ABBRS
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
+from nba_prop_analyzer.web import auth
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
+
+
+@app.context_processor
+def inject_user():
+    return {"current_user": auth.current_user(), "auth_configured": auth.is_configured()}
 
 # Load data once at startup
 print("Loading NBA data from databallr + TeamRankings + basketball-reference...")
@@ -148,6 +155,53 @@ def analyze():
         }
 
     return jsonify(result)
+
+
+@app.route("/auth/signup", methods=["POST"])
+def auth_signup():
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    name = (data.get("name") or "").strip()
+    if not email or "@" not in email:
+        return jsonify({"error": "Please enter a valid email address."}), 400
+    if not name:
+        return jsonify({"error": "Please enter your name."}), 400
+
+    redirect_to = f"{request.url_root.rstrip('/')}/auth/callback"
+    try:
+        auth.request_magic_link(email, name, redirect_to)
+    except auth.AuthError as e:
+        return jsonify({"error": str(e)}), 502
+
+    return jsonify({"message": f"Check {email} for a sign-in link."})
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    token_hash = request.args.get("token_hash")
+    otp_type = request.args.get("type", "email")
+    if not token_hash:
+        return render_template("auth_result.html", success=False,
+                                message="That sign-in link is missing its token — try requesting a new one."), 400
+
+    try:
+        user = auth.verify_magic_link(token_hash, otp_type)
+        name = (user.get("user_metadata") or {}).get("name", "")
+        profile = auth.upsert_profile(user["id"], user["email"], name)
+        auth.log_in_session(profile)
+    except auth.AuthError as e:
+        return render_template("auth_result.html", success=False, message=str(e)), 400
+
+    return redirect(url_for("index"))
+
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    auth.log_out_session()
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

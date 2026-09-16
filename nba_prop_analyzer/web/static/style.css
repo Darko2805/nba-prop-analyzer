@@ -49,6 +49,71 @@ header p {
   font-size: 0.9rem;
 }
 
+/* Account bar */
+.account-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.account-info {
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tier-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.tier-badge.tier-free { background: var(--card-border); color: var(--text-muted); }
+.tier-badge.tier-pro { background: var(--accent-glow); color: var(--accent); }
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-btn:hover { text-decoration: underline; }
+
+.signup-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.signup-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.signup-msg {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  display: none;
+}
+
+.signup-msg:not(:empty) { display: block; }
+.signup-msg.success { color: var(--green); }
+.signup-msg.error { color: var(--red); }
+
 /* Form */
 .form-card {
   background: var(--card);

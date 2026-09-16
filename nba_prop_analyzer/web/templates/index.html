@@ -9,6 +9,38 @@
 <body>
 
 <div class="container">
+  <div class="account-bar">
+    {% if current_user %}
+      <span class="account-info">
+        <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
+        {{ current_user.name }}
+      </span>
+      <form action="/auth/logout" method="post" style="display:inline">
+        <button type="submit" class="link-btn">Log out</button>
+      </form>
+    {% elif auth_configured %}
+      <button type="button" class="link-btn" id="signInToggle">Sign in / Create account</button>
+    {% endif %}
+  </div>
+
+  {% if not current_user and auth_configured %}
+  <div class="signup-card" id="signupCard" style="display:none">
+    <p class="signup-hint">No password needed — enter your email and name, and we'll send you a one-click sign-in link.</p>
+    <div class="form-row-2">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="signupName" placeholder="Your name">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="signupEmail" placeholder="you@example.com">
+      </div>
+    </div>
+    <button type="button" class="btn" id="signupSubmit">Send sign-in link</button>
+    <div class="signup-msg" id="signupMsg"></div>
+  </div>
+  {% endif %}
+
   <header>
     <h1><span>NBA</span> Prop Analyzer</h1>
     <p>Matchup-based probability estimates for player props</p>
@@ -173,6 +205,45 @@
 </div>
 
 <script>
+const signInToggle = document.getElementById('signInToggle');
+const signupCard = document.getElementById('signupCard');
+if (signInToggle) {
+  signInToggle.addEventListener('click', () => {
+    signupCard.style.display = signupCard.style.display === 'none' ? 'block' : 'none';
+  });
+}
+
+const signupSubmit = document.getElementById('signupSubmit');
+if (signupSubmit) {
+  signupSubmit.addEventListener('click', async () => {
+    const name = document.getElementById('signupName').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const msg = document.getElementById('signupMsg');
+    msg.textContent = '';
+    msg.className = 'signup-msg';
+
+    signupSubmit.disabled = true;
+    signupSubmit.textContent = 'Sending...';
+    try {
+      const resp = await fetch('/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+      msg.textContent = data.message;
+      msg.classList.add('success');
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.classList.add('error');
+    } finally {
+      signupSubmit.disabled = false;
+      signupSubmit.textContent = 'Send sign-in link';
+    }
+  });
+}
+
 const form = document.getElementById('analyzeForm');
 const loading = document.getElementById('loading');
 const results = document.getElementById('results');
