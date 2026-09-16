@@ -165,18 +165,43 @@ def auth_signup():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip().lower()
     name = (data.get("name") or "").strip()
+    password = data.get("password") or ""
     if not email or "@" not in email:
         return jsonify({"error": "Please enter a valid email address."}), 400
     if not name:
         return jsonify({"error": "Please enter your name."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
 
     redirect_to = f"{request.url_root.rstrip('/')}/auth/callback"
     try:
-        auth.request_magic_link(email, name, redirect_to)
+        auth.sign_up(email, password, name, redirect_to)
     except auth.AuthError as e:
         return jsonify({"error": str(e)}), 502
 
-    return jsonify({"message": f"We emailed a sign-in link to {email}. Open it on this device."})
+    return jsonify({"message": f"We emailed a confirmation link to {email}. Open it on this device to activate your account."})
+
+
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify({"error": "Please enter your email and password."}), 400
+
+    try:
+        user = auth.sign_in_with_password(email, password)
+        name = (user.get("user_metadata") or {}).get("name", "")
+        profile = auth.upsert_profile(user["id"], user["email"], name)
+        auth.log_in_session(profile)
+    except auth.AuthError as e:
+        return jsonify({"error": str(e)}), 401
+
+    return jsonify({"name": profile.get("name"), "tier": profile.get("tier")})
 
 
 @app.route("/auth/callback")

@@ -1,36 +1,36 @@
 """
-Lightweight passwordless auth on top of Supabase Auth (GoTrue) + Postgres.
+Email + password auth (with email confirmation) on top of Supabase Auth
+(GoTrue) + Postgres.
 
 Why Supabase: Render's free-tier disk doesn't survive a restart (not just
 deploys — ordinary idle spin-down/spin-up wipes it too), so user accounts
 need to live in a real external database. Supabase gives us that plus a
-built-in email OTP flow for free, so we don't have to run our own SMTP or
-build email verification from scratch.
+built-in signup-confirmation email flow for free, so we don't have to run
+our own SMTP or build email verification from scratch.
 
 Flow:
-  1. User submits email + name -> request_magic_link() calls Supabase's
-     /auth/v1/otp, which emails them a sign-in link. The name travels
-     along as user metadata so it's available once they verify.
-  2. Supabase's default email template (the free hosted mailer doesn't
-     allow customizing it without setting up custom SMTP — a later
+  1. User submits name + email + password -> sign_up() calls Supabase's
+     /auth/v1/signup, which creates an *unconfirmed* user and emails a
+     confirmation link. The name travels along as user metadata.
+  2. Supabase's default confirmation email template (the free hosted
+     mailer doesn't allow customizing it without custom SMTP — a later
      upgrade) redirects to our `email_redirect_to` URL with the session
      in a URL *fragment* (`#access_token=...`), not a query param.
      Fragments never reach the server, so /auth/callback serves a tiny
      page whose JS reads window.location.hash and POSTs the access_token
-     to /auth/complete-login.
+     to /auth/complete-login — same mechanism regardless of whether the
+     link came from signup confirmation or (in principle) a magic link.
   3. get_user_from_token() calls /auth/v1/user with that access token to
      fetch the Supabase user (id, email, user_metadata.name). We upsert
      a row in `profiles` (tier defaults to "free") and store just the
-     user id/email/name/tier in the signed Flask session cookie —
-     Supabase's access/refresh tokens aren't kept after that, since all
-     profile writes go through the service key, not RLS.
+     user id/email/name/tier in the signed Flask session cookie.
+  4. On later visits, sign_in_with_password() calls
+     /auth/v1/token?grant_type=password directly — no email round-trip,
+     just a normal API call that fails clearly if the account isn't
+     confirmed yet or the password is wrong.
 
-Known tradeoff: some email clients (notably Gmail's link safety
-pre-scan) occasionally open the link before the person clicks it,
-burning the single-use token — if that happens the fix is just to
-request a new one. Switching to a visible OTP code instead would avoid
-this, but requires custom SMTP to show the code in the email at all
-(the default hosted mailer's template only includes the link).
+Passwords are only ever relayed over HTTPS straight to Supabase, which
+hashes and stores them — this app never stores or sees a password at rest.
 """
 from __future__ import annotations
 
@@ -53,27 +53,59 @@ class AuthError(Exception):
     pass
 
 
-def request_magic_link(email: str, name: str, redirect_to: str) -> None:
-    """Ask Supabase to email a magic sign-in link. Raises AuthError on failure."""
+def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
+    """
+    Creates an unconfirmed Supabase user and triggers the confirmation
+    email. Raises AuthError on failure (including "already registered").
+    """
     resp = requests.post(
-        f"{SUPABASE_URL}/auth/v1/otp",
+        f"{SUPABASE_URL}/auth/v1/signup",
         headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
         json={
             "email": email,
-            "create_user": True,
+            "password": password,
             "data": {"name": name},
             "options": {"email_redirect_to": redirect_to},
         },
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:
-        raise AuthError(f"Supabase rejected the sign-in request ({resp.status_code}): {resp.text}")
+        body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if "already registered" in body.get("msg", "").lower() or body.get("error_code") == "user_already_exists":
+            raise AuthError("An account with that email already exists — try logging in instead.")
+        raise AuthError(f"Supabase rejected the sign-up ({resp.status_code}): {resp.text}")
+
+
+def sign_in_with_password(email: str, password: str) -> dict:
+    """
+    Direct password login, no email round-trip. Returns the Supabase user
+    dict. Raises AuthError with a clear message for bad credentials vs. an
+    unconfirmed account.
+    """
+    resp = requests.post(
+        f"{SUPABASE_URL}/auth/v1/token",
+        params={"grant_type": "password"},
+        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+        json={"email": email, "password": password},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if body.get("error_code") == "email_not_confirmed":
+            raise AuthError("Please confirm your email first — check your inbox for the confirmation link.")
+        raise AuthError("Incorrect email or password.")
+    payload = resp.json()
+    user = payload.get("user")
+    if not user:
+        raise AuthError("Supabase didn't return a user for this login.")
+    return user
 
 
 def get_user_from_token(access_token: str) -> dict:
     """
-    Resolves the Supabase user for an access token pulled from the magic
-    link's redirect fragment by the browser. Raises AuthError if invalid.
+    Resolves the Supabase user for an access token pulled from the
+    confirmation link's redirect fragment by the browser. Raises AuthError
+    if invalid.
     """
     resp = requests.get(
         f"{SUPABASE_URL}/auth/v1/user",
@@ -81,7 +113,7 @@ def get_user_from_token(access_token: str) -> dict:
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:
-        raise AuthError("That sign-in link is invalid or expired — request a new one.")
+        raise AuthError("That confirmation link is invalid or expired — try signing up again.")
     return resp.json()
 
 

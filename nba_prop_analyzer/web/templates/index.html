@@ -25,18 +25,40 @@
 
   {% if not current_user and auth_configured %}
   <div class="signup-card" id="signupCard" style="display:none">
-    <p class="signup-hint">No password needed — enter your email and name, and we'll email you a one-click sign-in link. Open it on this device/browser.</p>
-    <div class="form-row-2">
-      <div class="form-group">
-        <label>Name</label>
-        <input type="text" id="signupName" placeholder="Your name">
+    <div id="signupPane">
+      <p class="signup-hint">Create your account — we'll email you a confirmation link to activate it.</p>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="signupName" placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="signupEmail" placeholder="you@example.com">
+        </div>
       </div>
       <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="signupEmail" placeholder="you@example.com">
+        <label>Password</label>
+        <input type="password" id="signupPassword" placeholder="At least 8 characters">
       </div>
+      <button type="button" class="btn" id="signupSubmit">Create account</button>
+      <p class="signup-toggle">Already have an account? <button type="button" class="link-btn" id="showLogin">Log in</button></p>
     </div>
-    <button type="button" class="btn" id="signupSubmit">Send sign-in link</button>
+    <div id="loginPane" style="display:none">
+      <p class="signup-hint">Log in to your account.</p>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="Your password">
+        </div>
+      </div>
+      <button type="button" class="btn" id="loginSubmit">Log in</button>
+      <p class="signup-toggle">Need an account? <button type="button" class="link-btn" id="showSignup">Sign up</button></p>
+    </div>
     <div class="signup-msg" id="signupMsg"></div>
   </div>
   {% endif %}
@@ -214,6 +236,11 @@ if (signInToggle) {
 }
 
 const signupSubmit = document.getElementById('signupSubmit');
+const loginSubmit = document.getElementById('loginSubmit');
+const signupPane = document.getElementById('signupPane');
+const loginPane = document.getElementById('loginPane');
+const showLogin = document.getElementById('showLogin');
+const showSignup = document.getElementById('showSignup');
 const signupMsg = document.getElementById('signupMsg');
 
 function setSignupMsg(text, cls) {
@@ -221,19 +248,35 @@ function setSignupMsg(text, cls) {
   signupMsg.className = 'signup-msg' + (cls ? ' ' + cls : '');
 }
 
+if (showLogin) {
+  showLogin.addEventListener('click', () => {
+    signupPane.style.display = 'none';
+    loginPane.style.display = 'block';
+    setSignupMsg('');
+  });
+}
+if (showSignup) {
+  showSignup.addEventListener('click', () => {
+    loginPane.style.display = 'none';
+    signupPane.style.display = 'block';
+    setSignupMsg('');
+  });
+}
+
 if (signupSubmit) {
   signupSubmit.addEventListener('click', async () => {
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
     setSignupMsg('');
 
     signupSubmit.disabled = true;
-    signupSubmit.textContent = 'Sending...';
+    signupSubmit.textContent = 'Creating...';
     try {
       const resp = await fetch('/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, password }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
@@ -242,7 +285,33 @@ if (signupSubmit) {
       setSignupMsg(err.message, 'error');
     } finally {
       signupSubmit.disabled = false;
-      signupSubmit.textContent = 'Send sign-in link';
+      signupSubmit.textContent = 'Create account';
+    }
+  });
+}
+
+if (loginSubmit) {
+  loginSubmit.addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    setSignupMsg('');
+
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'Logging in...';
+    try {
+      const resp = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+      window.location.reload();
+    } catch (err) {
+      setSignupMsg(err.message, 'error');
+    } finally {
+      loginSubmit.disabled = false;
+      loginSubmit.textContent = 'Log in';
     }
   });
 }
