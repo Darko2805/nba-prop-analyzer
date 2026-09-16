@@ -9,9 +9,50 @@ if _repo_root not in sys.path:
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.config import PROP_TYPES
-from nba_prop_analyzer.data.team_mapping import ALL_TEAM_ABBRS
+from nba_prop_analyzer.data.team_mapping import ALL_TEAM_ABBRS, normalize_team
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
+from nba_prop_analyzer.data.databallr_client import find_player
+from nba_prop_analyzer.data import snapshot_store, news
 from nba_prop_analyzer.web import auth
+
+# A handful of recognizable stars to power the homepage's "Popular Bets"
+# quick-picks. Lines are computed from each player's real season average
+# (nearest 0.5), not fabricated — this is a shortcut into a real analysis,
+# not a claim about an actual sportsbook line.
+POPULAR_PLAYERS = [
+    "LeBron James", "Stephen Curry", "Luka Doncic", "Nikola Jokic",
+    "Giannis Antetokounmpo", "Shai Gilgeous-Alexander", "Jayson Tatum", "Anthony Edwards",
+]
+
+
+def _round_to_half(value: float) -> float:
+    return round(value * 2) / 2
+
+
+def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
+    """Curated quick-pick cards: player, a default points line from their real
+    season average, and their opponent tonight if they're actually playing."""
+    todays_opponent_by_team = {}
+    for g in games_today:
+        away_abbr = normalize_team(g["away_team"])
+        home_abbr = normalize_team(g["home_team"])
+        if away_abbr and home_abbr:
+            todays_opponent_by_team[away_abbr] = home_abbr
+            todays_opponent_by_team[home_abbr] = away_abbr
+
+    picks = []
+    for name in POPULAR_PLAYERS:
+        player = find_player(name, analyzer.players)
+        if not player or player.ppg <= 0:
+            continue
+        picks.append({
+            "player": player.name,
+            "team": player.team_abbr,
+            "prop_type": "points",
+            "line": _round_to_half(player.ppg),
+            "opponent": todays_opponent_by_team.get(player.team_abbr),
+        })
+    return picks
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
@@ -30,7 +71,23 @@ print("Data loaded. Server ready.\n")
 
 @app.route("/")
 def index():
-    return render_template("index.html", teams=ALL_TEAM_ABBRS, prop_types=PROP_TYPES)
+    games_today = snapshot_store.load_games_today()
+    popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
+    return render_template(
+        "index.html",
+        teams=ALL_TEAM_ABBRS,
+        prop_types=PROP_TYPES,
+        games_today=games_today,
+        popular_bets=popular_bets,
+    )
+
+
+@app.route("/api/news")
+def api_news():
+    try:
+        return jsonify({"items": news.fetch_news()})
+    except Exception as e:
+        return jsonify({"items": [], "error": str(e)}), 502
 
 
 @app.route("/analyze", methods=["POST"])

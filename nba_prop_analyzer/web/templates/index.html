@@ -111,6 +111,48 @@
     </form>
   </div>
 
+  <!-- Tonight's Games -->
+  <div class="section-card">
+    <h3>Tonight's Games</h3>
+    {% if games_today %}
+      <div class="games-grid">
+        {% for g in games_today %}
+        <div class="game-card">
+          <span class="game-time">{{ g.start_time }}</span>
+          <span class="game-matchup">{{ g.away_team }} @ {{ g.home_team }}</span>
+          <span class="game-arena">{{ g.arena }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty-hint">No games scheduled today.</p>
+    {% endif %}
+  </div>
+
+  <!-- Popular Bets -->
+  {% if popular_bets %}
+  <div class="section-card">
+    <h3>Popular Bets</h3>
+    <p class="empty-hint" style="margin-bottom:0.75rem;">Quick picks for well-known players — lines are their real season averages. Click to load a full analysis.</p>
+    <div class="popular-grid">
+      {% for pick in popular_bets %}
+      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
+        <span class="popular-player">{{ pick.player }}</span>
+        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }} tonight{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- News Feed -->
+  <div class="section-card">
+    <h3>Latest NBA News</h3>
+    <div id="newsFeed" class="news-feed">
+      <p class="empty-hint">Loading news…</p>
+    </div>
+  </div>
+
   <!-- Error -->
   <div class="error-msg" id="errorMsg"></div>
 
@@ -541,6 +583,58 @@ function renderCourt(zones) {
       </div>`;
   });
 }
+
+// Popular Bets quick-picks: fill the form and run the same analysis flow.
+document.querySelectorAll('.popular-card').forEach((card) => {
+  card.addEventListener('click', () => {
+    document.getElementById('player').value = card.dataset.player;
+    document.getElementById('opponent').value = card.dataset.opponent || '';
+    document.getElementById('prop_type').value = card.dataset.prop;
+    document.getElementById('line').value = card.dataset.line;
+    if (card.dataset.opponent) {
+      form.requestSubmit();
+    } else {
+      document.getElementById('opponent').focus();
+    }
+  });
+});
+
+// News feed: fetched separately so a slow/failed feed never blocks the page.
+// Titles/sources come from third-party RSS feeds, so they're untrusted text —
+// build the DOM with textContent instead of interpolating into innerHTML.
+(async () => {
+  const feedEl = document.getElementById('newsFeed');
+  try {
+    const resp = await fetch('/api/news');
+    const data = await resp.json();
+    if (!data.items || data.items.length === 0) {
+      feedEl.innerHTML = '<p class="empty-hint">No news available right now.</p>';
+      return;
+    }
+    feedEl.innerHTML = '';
+    data.items.forEach(item => {
+      const a = document.createElement('a');
+      a.className = 'news-item';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.href = /^https?:\/\//i.test(item.link) ? item.link : '#';
+
+      const source = document.createElement('span');
+      source.className = 'news-source';
+      source.textContent = item.source;
+
+      const title = document.createElement('span');
+      title.className = 'news-title';
+      title.textContent = item.title;
+
+      a.appendChild(source);
+      a.appendChild(title);
+      feedEl.appendChild(a);
+    });
+  } catch (err) {
+    feedEl.innerHTML = '<p class="empty-hint">Couldn\'t load news right now.</p>';
+  }
+})();
 </script>
 
 </body>

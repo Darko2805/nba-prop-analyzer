@@ -5,6 +5,7 @@ Replaces databallr's player_stats_with_metrics endpoint, which now requires
 signed requests we don't have (see git history for context). Uses the same
 site, rate limiter, and cache as bbref_scraper.py's per-player game logs.
 """
+import datetime
 import requests
 from bs4 import BeautifulSoup
 
@@ -180,3 +181,62 @@ def fetch_opponent_zone_defense(season_year: int = CURRENT_SEASON_YEAR) -> dict[
 
     cache.set(cache_key, result)
     return result
+
+
+def _season_year_for_date(d: datetime.date) -> int:
+    """bbref's season pages are named by the year they end in (Oct-Dec belongs to next year's page)."""
+    return d.year + 1 if d.month >= 7 else d.year
+
+
+def fetch_todays_games(today: datetime.date = None) -> list[dict]:
+    """
+    Today's NBA schedule (matchup, start time, arena) from basketball-reference's
+    monthly schedule page. Returns [] outside the regular season (e.g. offseason
+    summer months have no schedule page at all) rather than raising.
+    """
+    if today is None:
+        today = datetime.date.today()
+
+    season_year = _season_year_for_date(today)
+    month_name = today.strftime("%B").lower()
+    url = f"https://www.basketball-reference.com/leagues/NBA_{season_year}_games-{month_name}.html"
+
+    _rate_limit()
+    resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
+    if resp.status_code == 404:
+        return []
+    resp.raise_for_status()
+
+    soup = BeautifulSoup(resp.content, "html.parser")
+    table = soup.find("table", id="schedule")
+    if table is None:
+        return []
+
+    games = []
+    for row in table.find_all("tr"):
+        if row.get("class") and "thead" in " ".join(row.get("class", [])):
+            continue
+
+        cells = {}
+        for el in row.find_all(["td", "th"]):
+            stat = el.get("data-stat", "")
+            cells[stat] = el.get_text(strip=True)
+
+        date_str = cells.get("date_game", "")
+        if not date_str:
+            continue
+        try:
+            game_date = datetime.datetime.strptime(date_str, "%a, %b %d, %Y").date()
+        except ValueError:
+            continue
+        if game_date != today:
+            continue
+
+        games.append({
+            "start_time": cells.get("game_start_time", ""),
+            "away_team": cells.get("visitor_team_name", ""),
+            "home_team": cells.get("home_team_name", ""),
+            "arena": cells.get("arena_name", ""),
+        })
+
+    return games

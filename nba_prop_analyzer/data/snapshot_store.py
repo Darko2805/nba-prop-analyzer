@@ -87,6 +87,14 @@ def load_game_logs(player_name: str) -> Optional[list[GameLog]]:
     return [GameLog(**g) for g in raw]
 
 
+def save_games_today(games: list[dict]) -> None:
+    _save_json("games_today.json", games)
+
+
+def load_games_today() -> list[dict]:
+    return _load_json("games_today.json", [])
+
+
 def save_meta(meta: dict) -> None:
     _save_json("meta.json", meta)
 

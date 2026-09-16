@@ -18,7 +18,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from nba_prop_analyzer.data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent_zone_defense
+from nba_prop_analyzer.data.bbref_league_stats import (
+    fetch_all_players_per_game, fetch_opponent_zone_defense, fetch_todays_games,
+)
 from nba_prop_analyzer.data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile
 from nba_prop_analyzer.data import snapshot_store
 
@@ -36,6 +38,15 @@ def main():
     zone_defense = fetch_opponent_zone_defense()
     print(f"  {len(zone_defense)} teams")
     snapshot_store.save_opponent_zone_defense(zone_defense)
+
+    print("Fetching today's game schedule...")
+    try:
+        games_today = fetch_todays_games()
+        print(f"  {len(games_today)} games today")
+    except Exception as e:
+        print(f"  Today's games fetch failed ({e}), continuing with none")
+        games_today = []
+    snapshot_store.save_games_today(games_today)
 
     rotation_players = [p for p in players if p.games_played >= MIN_GAMES and p.mpg >= MIN_MPG]
     print(f"Refreshing game logs + shot zones for {len(rotation_players)} rotation players "
@@ -70,6 +81,7 @@ def main():
         "rotation_player_count": len(rotation_players),
         "game_logs_count": len(game_logs),
         "shot_zones_count": len(shot_zones),
+        "games_today_count": len(games_today),
         "fetch_failures": failures,
     })
 
