@@ -220,11 +220,12 @@
       <div class="court-wrap">
         <svg viewBox="0 0 500 460" class="court-svg" id="courtSvg">
           <defs>
-            <!-- minimal hoop glyph: rim + net, stroked in currentColor so JS can recolor per zone -->
-            <symbol id="hoopIcon" viewBox="0 0 24 20">
-              <ellipse cx="12" cy="3" rx="10" ry="2.4" fill="none" stroke="currentColor" stroke-width="2"></ellipse>
-              <path d="M2.5 3 L6 18 L18 18 L21.5 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
-              <path d="M5.2 3 L7.6 18 M8.6 3 L9.6 18 M12 3 L12 18 M15.4 3 L14.4 18 M18.8 3 L16.4 18" stroke="currentColor" stroke-width="0.9" opacity="0.55"></path>
+            <!-- basketball glyph: body filled in currentColor (set per-zone by JS) with
+                 seam lines, so each zone gets a colored ball rather than an outlined ring -->
+            <symbol id="basketballIcon" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10.5" fill="currentColor"></circle>
+              <path d="M1.5 12 H22.5 M12 1.5 V22.5 M4.3 4.5 C 8.2 9, 8.2 15, 4.3 19.5 M19.7 4.5 C 15.8 9, 15.8 15, 19.7 19.5"
+                    fill="none" stroke="rgba(15,17,23,0.6)" stroke-width="1.1"></path>
             </symbol>
           </defs>
 
@@ -244,24 +245,30 @@
             <path d="M 44 415 L 44 160 A 206 206 0 0 1 456 160 L 456 415"></path>
           </g>
 
-          <!-- hoop markers (top layer): colored by RANK, not raw gap size, so the
-               toughest zone always reads unambiguously red even when its gap is small -->
-          <g id="hoopAtRim" class="hoop-marker" transform="translate(250,393)">
-            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          <!-- basketball markers (top layer): colored by RANK, not raw gap size, so the
+               toughest zone always reads unambiguously red even when its gap is small.
+               Each ball also carries a +/- sign matching the gap direction, so the
+               takeaway doesn't depend on color alone. -->
+          <g id="ballAtRim" class="zone-ball-marker" transform="translate(250,393)">
+            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="hoopShortMid" class="hoop-marker" transform="translate(250,345)">
-            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          <g id="ballShortMid" class="zone-ball-marker" transform="translate(250,345)">
+            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="hoopLongMid" class="hoop-marker" transform="translate(250,285)">
-            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          <g id="ballLongMid" class="zone-ball-marker" transform="translate(250,285)">
+            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="hoopThree" class="hoop-marker" transform="translate(250,105)">
-            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          <g id="ballThree" class="zone-ball-marker" transform="translate(250,105)">
+            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
         </svg>
         <div class="court-legend" id="courtLegend"></div>
       </div>
-      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own hoop, colored green-to-red by rank (green = best exploit, red = toughest coverage) — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there.</p>
+      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there.</p>
     </div>
 
     <!-- Component Breakdown -->
@@ -566,11 +573,11 @@ const ZONE_SHAPE_IDS = {
   three: 'zoneThree',
 };
 
-const HOOP_IDS = {
-  at_rim: 'hoopAtRim',
-  short_mid: 'hoopShortMid',
-  long_mid: 'hoopLongMid',
-  three: 'hoopThree',
+const BALL_IDS = {
+  at_rim: 'ballAtRim',
+  short_mid: 'ballShortMid',
+  long_mid: 'ballLongMid',
+  three: 'ballThree',
 };
 
 // Fixed 4-step green->red palette, one per rank position — not tied to raw
@@ -602,16 +609,22 @@ function renderCourt(zones) {
   // Rank zones from biggest opponent weakness to toughest coverage.
   const rankedEntries = Object.entries(zones).sort((a, b) => b[1].gap - a[1].gap);
 
-  Object.values(HOOP_IDS).forEach((hoopId) => {
-    document.getElementById(hoopId).style.color = 'transparent';
+  Object.values(BALL_IDS).forEach((ballId) => {
+    const group = document.getElementById(ballId);
+    group.style.color = 'transparent';
+    group.querySelector('.zone-ball-sign').textContent = '';
   });
 
   const legend = document.getElementById('courtLegend');
   legend.innerHTML = '';
   rankedEntries.forEach(([key, zone], i) => {
     const rankColor = RANK_COLORS[i] || '#8b8d97';
-    const hoopId = HOOP_IDS[key];
-    if (hoopId) document.getElementById(hoopId).style.color = rankColor;
+    const ballId = BALL_IDS[key];
+    if (ballId) {
+      const group = document.getElementById(ballId);
+      group.style.color = rankColor;
+      group.querySelector('.zone-ball-sign').textContent = zone.gap < 0 ? '−' : '+';
+    }
 
     const gapPct = (zone.gap * 100).toFixed(1);
     const gapSign = zone.gap > 0 ? '+' : '';
