@@ -403,8 +403,21 @@ header p {
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
 }
 
+#teamBadgeCircle {
+  fill: transparent;
+  stroke: transparent;
+  transition: fill 0.3s, stroke 0.3s;
+}
+
+#teamBadgeText {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-anchor: middle;
+}
+
 .zone-ball-sign {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 800;
   fill: #0f1117;
   stroke: #fff;

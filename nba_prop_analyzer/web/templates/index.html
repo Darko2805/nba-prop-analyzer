@@ -240,9 +240,17 @@
             <rect x="20" y="20" width="460" height="410" rx="4"></rect>
             <rect x="190" y="255" width="120" height="160"></rect>
             <circle cx="250" cy="255" r="60"></circle>
-            <line x1="220" y1="400" x2="280" y2="400"></line>
+            <rect x="215" y="397" width="70" height="4"></rect>
+            <path d="M 230 415 A 20 20 0 0 1 270 415"></path>
             <circle cx="250" cy="415" r="7.5"></circle>
             <path d="M 44 415 L 44 160 A 206 206 0 0 1 456 160 L 456 415"></path>
+          </g>
+
+          <!-- team badge: branded with the color of the team the analyzed player
+               plays for, sitting at top-center like a center-court logo -->
+          <g id="teamBadge" transform="translate(250,62)">
+            <circle id="teamBadgeCircle" r="32" stroke-width="2.5"></circle>
+            <text id="teamBadgeText" text-anchor="middle" dominant-baseline="central"></text>
           </g>
 
           <!-- basketball markers (top layer): colored by RANK, not raw gap size, so the
@@ -261,14 +269,14 @@
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="ballThree" class="zone-ball-marker" transform="translate(250,105)">
+          <g id="ballThree" class="zone-ball-marker" transform="translate(250,130)">
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
         </svg>
         <div class="court-legend" id="courtLegend"></div>
       </div>
-      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there.</p>
+      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there. The badge at top is the analyzed player's own team.</p>
     </div>
 
     <!-- Component Breakdown -->
@@ -477,7 +485,7 @@ function renderResults(d) {
   const courtSection = document.getElementById('courtSection');
   if (d.zones) {
     courtSection.style.display = 'block';
-    renderCourt(d.zones);
+    renderCourt(d.zones, d.player_team, d.player_team_color);
   } else {
     courtSection.style.display = 'none';
   }
@@ -593,7 +601,22 @@ const RANK_BADGES = [
   { text: 'TOUGHEST', cls: 'worst' },
 ];
 
-function renderCourt(zones) {
+function renderCourt(zones, teamAbbr, teamColor) {
+  // Team badge: brand the court with the analyzed player's own team, like a
+  // center-court logo. Falls back to hidden if the team couldn't be resolved.
+  const badgeCircle = document.getElementById('teamBadgeCircle');
+  const badgeText = document.getElementById('teamBadgeText');
+  if (teamAbbr && teamColor) {
+    badgeCircle.style.stroke = teamColor;
+    badgeCircle.style.fill = teamColor + '26'; // ~15% opacity fill
+    badgeText.style.fill = teamColor;
+    badgeText.textContent = teamAbbr;
+  } else {
+    badgeCircle.style.stroke = 'transparent';
+    badgeCircle.style.fill = 'transparent';
+    badgeText.textContent = '';
+  }
+
   // Paint the court shapes (fixed geometry, independent of ranking).
   Object.entries(ZONE_SHAPE_IDS).forEach(([key, shapeId]) => {
     const zone = zones[key];
