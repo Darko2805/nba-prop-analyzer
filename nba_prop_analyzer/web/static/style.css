@@ -397,6 +397,12 @@ header p {
   stroke-width: 2;
 }
 
+.hoop-marker {
+  color: transparent;
+  transition: color 0.3s;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
+}
+
 .court-legend {
   flex: 1;
   min-width: 220px;

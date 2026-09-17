@@ -219,6 +219,15 @@
       <h3>Shot Zone Exploitation</h3>
       <div class="court-wrap">
         <svg viewBox="0 0 500 460" class="court-svg" id="courtSvg">
+          <defs>
+            <!-- minimal hoop glyph: rim + net, stroked in currentColor so JS can recolor per zone -->
+            <symbol id="hoopIcon" viewBox="0 0 24 20">
+              <ellipse cx="12" cy="3" rx="10" ry="2.4" fill="none" stroke="currentColor" stroke-width="2"></ellipse>
+              <path d="M2.5 3 L6 18 L18 18 L21.5 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+              <path d="M5.2 3 L7.6 18 M8.6 3 L9.6 18 M12 3 L12 18 M15.4 3 L14.4 18 M18.8 3 L16.4 18" stroke="currentColor" stroke-width="0.9" opacity="0.55"></path>
+            </symbol>
+          </defs>
+
           <!-- colored zones (bottom layer, drawn largest-to-smallest so each ring peeks out around the next) -->
           <rect x="20" y="20" width="460" height="410" rx="4" id="zoneThree" class="zone-shape"></rect>
           <circle cx="250" cy="415" r="165" id="zoneLongMid" class="zone-shape"></circle>
@@ -234,10 +243,25 @@
             <circle cx="250" cy="415" r="7.5"></circle>
             <path d="M 44 415 L 44 160 A 206 206 0 0 1 456 160 L 456 415"></path>
           </g>
+
+          <!-- hoop markers (top layer): colored by RANK, not raw gap size, so the
+               toughest zone always reads unambiguously red even when its gap is small -->
+          <g id="hoopAtRim" class="hoop-marker" transform="translate(250,393)">
+            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          </g>
+          <g id="hoopShortMid" class="hoop-marker" transform="translate(250,345)">
+            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          </g>
+          <g id="hoopLongMid" class="hoop-marker" transform="translate(250,285)">
+            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          </g>
+          <g id="hoopThree" class="hoop-marker" transform="translate(250,105)">
+            <use href="#hoopIcon" x="-13" y="-11" width="26" height="22"></use>
+          </g>
         </svg>
         <div class="court-legend" id="courtLegend"></div>
       </div>
-      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Ring color follows the same scale (green = exploit, red = avoid); how solid the ring looks reflects how often the player actually shoots from there.</p>
+      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own hoop, colored green-to-red by rank (green = best exploit, red = toughest coverage) — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there.</p>
     </div>
 
     <!-- Component Breakdown -->
@@ -532,7 +556,7 @@ function zoneColor(gap) {
 }
 
 function zoneOpacity(freq) {
-  return Math.min(0.9, Math.max(0.3, freq * 1.3));
+  return Math.min(0.55, Math.max(0.15, freq * 0.8));
 }
 
 const ZONE_SHAPE_IDS = {
@@ -541,6 +565,19 @@ const ZONE_SHAPE_IDS = {
   long_mid: 'zoneLongMid',
   three: 'zoneThree',
 };
+
+const HOOP_IDS = {
+  at_rim: 'hoopAtRim',
+  short_mid: 'hoopShortMid',
+  long_mid: 'hoopLongMid',
+  three: 'hoopThree',
+};
+
+// Fixed 4-step green->red palette, one per rank position — not tied to raw
+// gap size, so "toughest" always reads clearly red even when its gap is
+// small (a continuous scale washed out for small gaps and made it blend
+// into neutral gray).
+const RANK_COLORS = ['#22c55e', '#a3e635', '#f97316', '#ef4444'];
 
 const RANK_BADGES = [
   { text: 'BEST EXPLOIT', cls: 'best' },
@@ -563,17 +600,25 @@ function renderCourt(zones) {
   });
 
   // Rank zones from biggest opponent weakness to toughest coverage.
-  const ranked = Object.values(zones).sort((a, b) => b.gap - a.gap);
+  const rankedEntries = Object.entries(zones).sort((a, b) => b[1].gap - a[1].gap);
+
+  Object.values(HOOP_IDS).forEach((hoopId) => {
+    document.getElementById(hoopId).style.color = 'transparent';
+  });
 
   const legend = document.getElementById('courtLegend');
   legend.innerHTML = '';
-  ranked.forEach((zone, i) => {
+  rankedEntries.forEach(([key, zone], i) => {
+    const rankColor = RANK_COLORS[i] || '#8b8d97';
+    const hoopId = HOOP_IDS[key];
+    if (hoopId) document.getElementById(hoopId).style.color = rankColor;
+
     const gapPct = (zone.gap * 100).toFixed(1);
     const gapSign = zone.gap > 0 ? '+' : '';
     const badge = RANK_BADGES[i] || { text: `#${i + 1}`, cls: '' };
     legend.innerHTML += `
       <div class="court-legend-item">
-        <span class="court-legend-swatch" style="background:${zoneColor(zone.gap)}; opacity:${zoneOpacity(zone.player_freq)}"></span>
+        <span class="court-legend-swatch" style="background:${rankColor}"></span>
         <span class="court-legend-text">
           <span class="court-rank-badge ${badge.cls}">${badge.text}</span>
           <strong>${zone.label}</strong> — ${(zone.player_freq * 100).toFixed(0)}% usage,
