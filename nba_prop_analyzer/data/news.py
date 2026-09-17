@@ -10,6 +10,7 @@ through the daily snapshot pipeline.
 NBA.com's RSS feed is defunct (redirects to the homepage), so CBS Sports
 fills the third slot instead of NBA.com specifically.
 """
+import html
 import time
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
@@ -39,7 +40,10 @@ def _parse_feed(source: str, xml_text: str) -> list[dict]:
         return items
 
     for item in root.findall(".//item"):
-        title = (item.findtext("title") or "").strip()
+        # Titles inside <![CDATA[...]]> are raw text to the XML parser, so an
+        # HTML entity like &#39; embedded there (as some feeds do) survives
+        # ET's decoding untouched and needs its own unescape pass here.
+        title = html.unescape((item.findtext("title") or "").strip())
         link = (item.findtext("link") or "").strip()
         pub_date_raw = (item.findtext("pubDate") or "").strip()
         if not title or not link:
