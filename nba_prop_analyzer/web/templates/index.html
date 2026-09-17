@@ -217,8 +217,15 @@
     <!-- Shot Zone Exploitation Court -->
     <div class="section-card" id="courtSection" style="display:none">
       <h3>Shot Zone Exploitation</h3>
+      <div class="court-team-label" id="courtTeamLabel"></div>
       <div class="court-wrap">
-        <svg viewBox="0 0 500 460" class="court-svg" id="courtSvg">
+        <!-- Geometry below is drawn to real NBA half-court proportions at 9px/ft
+             (50ft wide x 47ft baseline-to-halfcourt-line), not stylized guesses:
+             backboard 4ft off the baseline, rim 5.25ft off it, free-throw line at
+             19ft with a 6ft-radius circle, 16ft-wide lane, 4ft restricted-area arc,
+             and a true 3PT arc (23.75ft, 22ft in the corners) with straight corner
+             segments rather than a single circle. -->
+        <svg viewBox="0 0 490 465" class="court-svg" id="courtSvg">
           <defs>
             <!-- basketball glyph: body filled in currentColor (set per-zone by JS) with
                  seam lines, so each zone gets a colored ball rather than an outlined ring -->
@@ -229,54 +236,59 @@
             </symbol>
           </defs>
 
-          <!-- colored zones (bottom layer, drawn largest-to-smallest so each ring peeks out around the next) -->
-          <rect x="20" y="20" width="460" height="410" rx="4" id="zoneThree" class="zone-shape"></rect>
-          <circle cx="250" cy="415" r="165" id="zoneLongMid" class="zone-shape"></circle>
-          <circle cx="250" cy="415" r="95" id="zoneShortMid" class="zone-shape"></circle>
-          <circle cx="250" cy="415" r="45" id="zoneAtRim" class="zone-shape"></circle>
+          <!-- colored zones (bottom layer). zoneThree is cut to the TRUE arc + corner
+               shape (evenodd hole), not the whole rect, so its tint only covers the
+               real beyond-the-arc area including the corners. -->
+          <path id="zoneThree" class="zone-shape" fill-rule="evenodd"
+                d="M20,20 H470 V443 H20 Z M47,443 L47,315 A214,214 0 0 1 443,315 L443,443 Z"></path>
+          <circle cx="245" cy="396" r="207" id="zoneLongMid" class="zone-shape"></circle>
+          <circle cx="245" cy="396" r="90" id="zoneShortMid" class="zone-shape"></circle>
+          <circle cx="245" cy="396" r="27" id="zoneAtRim" class="zone-shape"></circle>
 
           <!-- court line art (on top, no fill) -->
           <g class="court-lines">
-            <rect x="20" y="20" width="460" height="410" rx="4"></rect>
-            <rect x="190" y="255" width="120" height="160"></rect>
-            <circle cx="250" cy="255" r="60"></circle>
-            <rect x="215" y="397" width="70" height="4"></rect>
-            <path d="M 230 415 A 20 20 0 0 1 270 415"></path>
-            <circle cx="250" cy="415" r="7.5"></circle>
-            <path d="M 44 415 L 44 160 A 206 206 0 0 1 456 160 L 456 415"></path>
+            <rect x="20" y="20" width="450" height="423" rx="4"></rect>
+            <rect x="173" y="272" width="144" height="171"></rect>
+            <circle cx="245" cy="272" r="54"></circle>
+            <rect x="218" y="405" width="54" height="4"></rect>
+            <path d="M 209 396 A 36 36 0 0 1 281 396"></path>
+            <circle cx="245" cy="396" r="7.5"></circle>
+            <path d="M 47 443 L 47 315 A 214 214 0 0 1 443 315 L 443 443"></path>
           </g>
 
-          <!-- team badge: branded with the color of the team the analyzed player
-               plays for, sitting at top-center like a center-court logo -->
-          <g id="teamBadge" transform="translate(250,62)">
+          <!-- team badge: the real logo of the team the analyzed player plays for,
+               hotlinked from a public logo CDN (never downloaded/stored by us),
+               on a tinted disc in the team's color — sitting top-center like a
+               center-court mark -->
+          <g id="teamBadge" transform="translate(245,58)">
             <circle id="teamBadgeCircle" r="32" stroke-width="2.5"></circle>
-            <text id="teamBadgeText" text-anchor="middle" dominant-baseline="central"></text>
+            <image id="teamBadgeLogo" x="-22" y="-22" width="44" height="44" preserveAspectRatio="xMidYMid meet"></image>
           </g>
 
           <!-- basketball markers (top layer): colored by RANK, not raw gap size, so the
                toughest zone always reads unambiguously red even when its gap is small.
                Each ball also carries a +/- sign matching the gap direction, so the
                takeaway doesn't depend on color alone. -->
-          <g id="ballAtRim" class="zone-ball-marker" transform="translate(250,393)">
+          <g id="ballAtRim" class="zone-ball-marker" transform="translate(245,383)">
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="ballShortMid" class="zone-ball-marker" transform="translate(250,345)">
+          <g id="ballShortMid" class="zone-ball-marker" transform="translate(245,338)">
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="ballLongMid" class="zone-ball-marker" transform="translate(250,285)">
+          <g id="ballLongMid" class="zone-ball-marker" transform="translate(245,248)">
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
-          <g id="ballThree" class="zone-ball-marker" transform="translate(250,130)">
+          <g id="ballThree" class="zone-ball-marker" transform="translate(245,115)">
             <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
           </g>
         </svg>
         <div class="court-legend" id="courtLegend"></div>
       </div>
-      <p class="court-hint">Ranked from the opponent's biggest weakness to their toughest coverage. Each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there. The badge at top is the analyzed player's own team.</p>
+      <p class="court-hint">Drawn to real NBA half-court proportions. Ranked from the opponent's biggest weakness to their toughest coverage, each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there. The logo at top is the analyzed player's own team.</p>
     </div>
 
     <!-- Component Breakdown -->
@@ -485,7 +497,7 @@ function renderResults(d) {
   const courtSection = document.getElementById('courtSection');
   if (d.zones) {
     courtSection.style.display = 'block';
-    renderCourt(d.zones, d.player_team, d.player_team_color);
+    renderCourt(d.zones, d.player_team, d.player_team_color, d.player_team_logo, d.player_team_name);
   } else {
     courtSection.style.display = 'none';
   }
@@ -601,20 +613,28 @@ const RANK_BADGES = [
   { text: 'TOUGHEST', cls: 'worst' },
 ];
 
-function renderCourt(zones, teamAbbr, teamColor) {
-  // Team badge: brand the court with the analyzed player's own team, like a
-  // center-court logo. Falls back to hidden if the team couldn't be resolved.
+function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
+  // Team badge: the real logo of the analyzed player's own team, hotlinked
+  // (never stored by us) from a public logo CDN, on a tinted disc in the
+  // team's color. Falls back to hidden if the team couldn't be resolved.
   const badgeCircle = document.getElementById('teamBadgeCircle');
-  const badgeText = document.getElementById('teamBadgeText');
+  const badgeLogo = document.getElementById('teamBadgeLogo');
+  const teamLabel = document.getElementById('courtTeamLabel');
   if (teamAbbr && teamColor) {
     badgeCircle.style.stroke = teamColor;
     badgeCircle.style.fill = teamColor + '26'; // ~15% opacity fill
-    badgeText.style.fill = teamColor;
-    badgeText.textContent = teamAbbr;
+    if (teamLogo) {
+      badgeLogo.setAttributeNS('http://www.w3.org/1999/xlink', 'href', teamLogo);
+      badgeLogo.setAttribute('href', teamLogo);
+    }
+    teamLabel.textContent = teamName || teamAbbr;
+    teamLabel.style.color = teamColor;
   } else {
     badgeCircle.style.stroke = 'transparent';
     badgeCircle.style.fill = 'transparent';
-    badgeText.textContent = '';
+    badgeLogo.removeAttribute('href');
+    badgeLogo.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+    teamLabel.textContent = '';
   }
 
   // Paint the court shapes (fixed geometry, independent of ranking).

@@ -9,7 +9,9 @@ if _repo_root not in sys.path:
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.config import PROP_TYPES
-from nba_prop_analyzer.data.team_mapping import ALL_TEAM_ABBRS, TEAM_COLORS, normalize_team
+from nba_prop_analyzer.data.team_mapping import (
+    ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
+)
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
 from nba_prop_analyzer.data import snapshot_store, news
@@ -128,6 +130,8 @@ def analyze():
         "player_name": pred.player_name,
         "player_team": player_team,
         "player_team_color": TEAM_COLORS.get(player_team, "#8b8d97"),
+        "player_team_name": TEAM_FULL_NAMES.get(player_team, ""),
+        "player_team_logo": team_logo_url(player_team),
         "opponent": pred.opponent,
         "prop_type": pred.prop_type,
         "prop_label": {

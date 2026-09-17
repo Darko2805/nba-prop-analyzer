@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 TEAM_ABBR_MAP = {
     "Atlanta Hawks": "ATL", "Hawks": "ATL", "ATL": "ATL",
     "Boston Celtics": "BOS", "Celtics": "BOS", "BOS": "BOS",
@@ -46,6 +48,36 @@ TEAM_COLORS = {
     "POR": "#E03A3E", "SAC": "#5A2D81", "SAS": "#C4CED4", "TOR": "#CE1141",
     "UTA": "#002B5C", "WAS": "#002B5C",
 }
+
+TEAM_FULL_NAMES = {
+    "ATL": "ATLANTA HAWKS", "BKN": "BROOKLYN NETS", "BOS": "BOSTON CELTICS",
+    "CHA": "CHARLOTTE HORNETS", "CHI": "CHICAGO BULLS", "CLE": "CLEVELAND CAVALIERS",
+    "DAL": "DALLAS MAVERICKS", "DEN": "DENVER NUGGETS", "DET": "DETROIT PISTONS",
+    "GSW": "GOLDEN STATE WARRIORS", "HOU": "HOUSTON ROCKETS", "IND": "INDIANA PACERS",
+    "LAC": "LA CLIPPERS", "LAL": "LOS ANGELES LAKERS", "MEM": "MEMPHIS GRIZZLIES",
+    "MIA": "MIAMI HEAT", "MIL": "MILWAUKEE BUCKS", "MIN": "MINNESOTA TIMBERWOLVES",
+    "NOP": "NEW ORLEANS PELICANS", "NYK": "NEW YORK KNICKS", "OKC": "OKLAHOMA CITY THUNDER",
+    "ORL": "ORLANDO MAGIC", "PHI": "PHILADELPHIA 76ERS", "PHX": "PHOENIX SUNS",
+    "POR": "PORTLAND TRAIL BLAZERS", "SAC": "SACRAMENTO KINGS", "SAS": "SAN ANTONIO SPURS",
+    "TOR": "TORONTO RAPTORS", "UTA": "UTAH JAZZ", "WAS": "WASHINGTON WIZARDS",
+}
+
+# ESPN's public team-logo CDN slug per team (verified reachable, image/png).
+# Hotlinked at render time rather than downloaded/stored, so we never host or
+# redistribute the logo image ourselves.
+TEAM_LOGO_SLUGS = {
+    "ATL": "atl", "BKN": "bkn", "BOS": "bos", "CHA": "cha", "CHI": "chi",
+    "CLE": "cle", "DAL": "dal", "DEN": "den", "DET": "det", "GSW": "gs",
+    "HOU": "hou", "IND": "ind", "LAC": "lac", "LAL": "lal", "MEM": "mem",
+    "MIA": "mia", "MIL": "mil", "MIN": "min", "NOP": "no", "NYK": "ny",
+    "OKC": "okc", "ORL": "orl", "PHI": "phi", "PHX": "phx", "POR": "por",
+    "SAC": "sac", "SAS": "sa", "TOR": "tor", "UTA": "utah", "WAS": "wsh",
+}
+
+
+def team_logo_url(team_abbr: str) -> str | None:
+    slug = TEAM_LOGO_SLUGS.get(team_abbr)
+    return f"https://a.espncdn.com/i/teamlogos/nba/500/{slug}.png" if slug else None
 
 
 def normalize_team(name: str):

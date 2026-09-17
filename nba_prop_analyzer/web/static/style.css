@@ -376,8 +376,8 @@ header p {
 }
 
 .court-svg {
-  width: 260px;
-  min-width: 200px;
+  width: 300px;
+  min-width: 220px;
   flex-shrink: 0;
 }
 
@@ -409,11 +409,19 @@ header p {
   transition: fill 0.3s, stroke 0.3s;
 }
 
-#teamBadgeText {
-  font-size: 20px;
+#teamBadgeLogo {
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
+
+.court-team-label {
+  text-align: center;
+  font-size: 0.95rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  text-anchor: middle;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  min-height: 1.2em;
+  transition: color 0.3s;
 }
 
 .zone-ball-sign {
