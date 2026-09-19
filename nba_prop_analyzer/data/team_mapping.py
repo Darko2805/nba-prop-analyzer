@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import unicodedata
+
+import requests
+
+from ..cache import cache
+
 TEAM_ABBR_MAP = {
     "Atlanta Hawks": "ATL", "Hawks": "ATL", "ATL": "ATL",
     "Boston Celtics": "BOS", "Celtics": "BOS", "BOS": "BOS",
@@ -78,6 +84,51 @@ TEAM_LOGO_SLUGS = {
 def team_logo_url(team_abbr: str) -> str | None:
     slug = TEAM_LOGO_SLUGS.get(team_abbr)
     return f"https://a.espncdn.com/i/teamlogos/nba/500/{slug}.png" if slug else None
+
+
+def _normalize_for_match(name: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", name)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+
+def _espn_roster(team_abbr: str) -> list[dict]:
+    """Fetches a team's live ESPN roster (name + ESPN athlete id per player),
+    cached for an hour so analyzing several players on the same team doesn't
+    re-fetch. Returns [] on any failure — a missing headshot is never fatal."""
+    slug = TEAM_LOGO_SLUGS.get(team_abbr)
+    if not slug:
+        return []
+    cache_key = f"espn_roster_{team_abbr}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        resp = requests.get(
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{slug}/roster",
+            timeout=6,
+        )
+        resp.raise_for_status()
+        roster = resp.json().get("athletes", [])
+    except Exception:
+        roster = []
+    cache.set(cache_key, roster)
+    return roster
+
+
+def find_espn_player_id(player_name: str, team_abbr: str) -> str | None:
+    """Looks up a player's ESPN athlete id by name within their team's live
+    roster, so we can hotlink their official headshot without maintaining
+    our own name-to-id mapping. Diacritic/case-insensitive, same approach as
+    the bbref player matching elsewhere in this app."""
+    target = _normalize_for_match(player_name)
+    for athlete in _espn_roster(team_abbr):
+        if _normalize_for_match(athlete.get("fullName", "")) == target:
+            return athlete.get("id")
+    return None
+
+
+def espn_headshot_url(espn_player_id: str) -> str:
+    return f"https://a.espncdn.com/i/headshots/nba/players/full/{espn_player_id}.png"
 
 
 def normalize_team(name: str):

@@ -11,6 +11,7 @@ from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.config import PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
+    find_espn_player_id, espn_headshot_url,
 )
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
@@ -47,12 +48,14 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
         player = find_player(name, analyzer.players)
         if not player or player.ppg <= 0:
             continue
+        espn_id = find_espn_player_id(player.name, player.team_abbr)
         picks.append({
             "player": player.name,
             "team": player.team_abbr,
             "prop_type": "points",
             "line": _round_to_half(player.ppg),
             "opponent": todays_opponent_by_team.get(player.team_abbr),
+            "headshot": espn_headshot_url(espn_id) if espn_id else None,
         })
     return picks
 
@@ -126,12 +129,14 @@ def analyze():
     bd = pred.breakdown
     player_obj = find_player(player_name, analyzer.players)
     player_team = player_obj.team_abbr if player_obj else None
+    espn_id = find_espn_player_id(pred.player_name, player_team) if player_team else None
     result = {
         "player_name": pred.player_name,
         "player_team": player_team,
         "player_team_color": TEAM_COLORS.get(player_team, "#8b8d97"),
         "player_team_name": TEAM_FULL_NAMES.get(player_team, ""),
         "player_team_logo": team_logo_url(player_team),
+        "player_headshot": espn_headshot_url(espn_id) if espn_id else None,
         "opponent": pred.opponent,
         "prop_type": pred.prop_type,
         "prop_label": {

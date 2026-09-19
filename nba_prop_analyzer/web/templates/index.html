@@ -130,8 +130,11 @@
   <div id="results">
     <!-- Header -->
     <div class="result-header">
-      <h2 id="resTitle"></h2>
-      <p class="matchup" id="resMatchup"></p>
+      <img id="resHeadshot" class="headshot" alt="" style="display:none">
+      <div>
+        <h2 id="resTitle"></h2>
+        <p class="matchup" id="resMatchup"></p>
+      </div>
     </div>
 
     <!-- Probability -->
@@ -198,7 +201,23 @@
               <path d="M1.5 12 H22.5 M12 1.5 V22.5 M4.3 4.5 C 8.2 9, 8.2 15, 4.3 19.5 M19.7 4.5 C 15.8 9, 15.8 15, 19.7 19.5"
                     fill="none" stroke="rgba(15,17,23,0.6)" stroke-width="1.1"></path>
             </symbol>
+
+            <!-- Procedurally-generated hardwood grain (no real court photo — this is
+                 built entirely from noise, so there's nothing to license or attribute).
+                 Long vertical streaks + fine cross-grain, tinted to an oak tone. -->
+            <filter id="woodGrain" x="-5%" y="-5%" width="110%" height="110%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.18 0.012" numOctaves="3" seed="7" result="grain"></feTurbulence>
+              <feColorMatrix in="grain" type="matrix"
+                values="0.5 0 0 0 0.42
+                        0.32 0 0 0 0.27
+                        0.14 0 0 0 0.12
+                        0   0 0 0 1"></feColorMatrix>
+            </filter>
           </defs>
+
+          <!-- hardwood background + team-color wash, sized to the real court boundary -->
+          <rect x="20" y="20" width="450" height="423" rx="4" filter="url(#woodGrain)"></rect>
+          <rect id="courtTeamWash" x="20" y="20" width="450" height="423" rx="4" fill="transparent"></rect>
 
           <!-- colored zones (bottom layer). zoneThree is cut to the TRUE arc + corner
                shape (evenodd hole), not the whole rect, so its tint only covers the
@@ -304,22 +323,6 @@
       {% endif %}
     </div>
 
-    <!-- Popular Bets -->
-    {% if popular_bets %}
-    <div class="side-block">
-      <h3>Quick looks</h3>
-      <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
-      <div class="popular-list">
-        {% for pick in popular_bets %}
-        <button type="button" class="popular-row" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
-          <span class="popular-player">{{ pick.player }}</span>
-          <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
-        </button>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
     <!-- News Feed -->
     <div class="side-block">
       <h3>League wire</h3>
@@ -331,6 +334,28 @@
   </aside>
 
   </div>
+
+  <!-- Popular Bets: full-width showcase, not a sidebar list — these are photos
+       and real season averages, they need room to actually read as a showcase. -->
+  {% if popular_bets %}
+  <div class="showcase">
+    <h3>Quick looks</h3>
+    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
+    <div class="popular-scroll">
+      {% for pick in popular_bets %}
+      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
+        {% if pick.headshot %}
+        <img src="{{ pick.headshot }}" alt="" class="popular-headshot" onerror="this.style.display='none'">
+        {% else %}
+        <span class="popular-headshot popular-headshot-empty"></span>
+        {% endif %}
+        <span class="popular-player">{{ pick.player }}</span>
+        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>
@@ -477,6 +502,20 @@ function renderResults(d) {
   // Header
   document.getElementById('resTitle').textContent = `${d.player_name} - ${d.prop_label}`;
   document.getElementById('resMatchup').textContent = `vs ${d.opponent} | Line: ${d.prop_line} ${unit}`;
+
+  // Headshot: hotlinked from ESPN, never stored by us. Hidden entirely if we
+  // couldn't resolve the player's ESPN id (e.g. a name ESPN's roster doesn't
+  // have) rather than showing a broken image.
+  const headshot = document.getElementById('resHeadshot');
+  if (d.player_headshot) {
+    headshot.src = d.player_headshot;
+    headshot.alt = d.player_name;
+    headshot.style.display = 'block';
+    headshot.onerror = () => { headshot.style.display = 'none'; };
+  } else {
+    headshot.style.display = 'none';
+    headshot.removeAttribute('src');
+  }
 
   // Probabilities
   document.getElementById('overBar').style.width = d.over_prob + '%';
@@ -634,6 +673,7 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
   const badgeCircle = document.getElementById('teamBadgeCircle');
   const badgeLogo = document.getElementById('teamBadgeLogo');
   const teamLabel = document.getElementById('courtTeamLabel');
+  const teamWash = document.getElementById('courtTeamWash');
   if (teamAbbr && teamColor) {
     badgeCircle.style.stroke = teamColor;
     badgeCircle.style.fill = teamColor + '26'; // ~15% opacity fill
@@ -643,12 +683,15 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
     }
     teamLabel.textContent = teamName || teamAbbr;
     teamLabel.style.color = teamColor;
+    teamWash.setAttribute('fill', teamColor);
+    teamWash.style.fillOpacity = '0.16';
   } else {
     badgeCircle.style.stroke = 'transparent';
     badgeCircle.style.fill = 'transparent';
     badgeLogo.removeAttribute('href');
     badgeLogo.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
     teamLabel.textContent = '';
+    teamWash.setAttribute('fill', 'transparent');
   }
 
   // Paint the court shapes (fixed geometry, independent of ranking).
@@ -700,7 +743,7 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
 }
 
 // Popular Bets quick-picks: fill the form and run the same analysis flow.
-document.querySelectorAll('.popular-row').forEach((card) => {
+document.querySelectorAll('.popular-card').forEach((card) => {
   card.addEventListener('click', () => {
     document.getElementById('player').value = card.dataset.player;
     document.getElementById('opponent').value = card.dataset.opponent || '';
