@@ -117,6 +117,28 @@
     </form>
   </div>
 
+  <!-- Popular Bets: sits in the main column right under the form, sized to its
+       width — not a full-width band — so it never pushes the sidebar down. -->
+  {% if popular_bets %}
+  <div class="showcase">
+    <h3>Quick looks</h3>
+    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
+    <div class="popular-scroll">
+      {% for pick in popular_bets %}
+      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
+        {% if pick.headshot %}
+        <img src="{{ pick.headshot }}" alt="" class="popular-headshot" onerror="this.style.display='none'">
+        {% else %}
+        <span class="popular-headshot popular-headshot-empty"></span>
+        {% endif %}
+        <span class="popular-player">{{ pick.player }}</span>
+        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Error -->
   <div class="error-msg" id="errorMsg"></div>
 
@@ -334,28 +356,6 @@
   </aside>
 
   </div>
-
-  <!-- Popular Bets: full-width showcase, not a sidebar list — these are photos
-       and real season averages, they need room to actually read as a showcase. -->
-  {% if popular_bets %}
-  <div class="showcase">
-    <h3>Quick looks</h3>
-    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
-    <div class="popular-scroll">
-      {% for pick in popular_bets %}
-      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
-        {% if pick.headshot %}
-        <img src="{{ pick.headshot }}" alt="" class="popular-headshot" onerror="this.style.display='none'">
-        {% else %}
-        <span class="popular-headshot popular-headshot-empty"></span>
-        {% endif %}
-        <span class="popular-player">{{ pick.player }}</span>
-        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
 </div>
 
 <script>

@@ -579,7 +579,7 @@ body {
   border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 1.25rem;
-  margin-top: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .showcase h3 {
@@ -614,7 +614,8 @@ body {
   gap: 0.4rem;
   font-family: inherit;
   color: inherit;
-  flex: 0 0 128px;
+  flex: 0 0 calc((100% - 2.25rem) / 4);
+  min-width: 108px;
   scroll-snap-align: start;
   transition: border-color 0.15s, transform 0.15s;
 }
@@ -756,4 +757,5 @@ body {
   .form-row { grid-template-columns: 1fr 1fr; }
   .stat-row { grid-template-columns: 1fr; }
   .masthead { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .popular-card { flex-basis: calc((100% - 0.75rem) / 2); }
 }
