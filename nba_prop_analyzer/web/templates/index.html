@@ -296,24 +296,21 @@
       <p class="court-hint">Drawn to real NBA half-court proportions. Ranked from the opponent's biggest weakness to their toughest coverage, each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there. The logo at top is the analyzed player's own team.</p>
     </div>
 
+    <!-- Recent Form vs the Line -->
+    <div class="section-card" id="gameLogSection" style="display:none">
+      <h3>Recent Form vs the Line</h3>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 700 200" class="chart-svg" id="gameLogChart" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="game-log-summary" id="gameLogSummary"></div>
+    </div>
+
     <!-- Component Breakdown -->
     <div class="section-card">
       <h3>Component Breakdown</h3>
       <table class="breakdown-table" id="breakdownTable">
         <tbody></tbody>
       </table>
-    </div>
-
-    <!-- Last 5 Games -->
-    <div class="section-card" id="gameLogSection" style="display:none">
-      <h3>Last 5 Games (Basketball-Reference)</h3>
-      <table class="game-log-table">
-        <thead>
-          <tr><th>Date</th><th>Opp</th><th>Value</th><th>Result</th></tr>
-        </thead>
-        <tbody id="gameLogBody"></tbody>
-      </table>
-      <div class="game-log-summary" id="gameLogSummary"></div>
     </div>
 
     <!-- Variance -->
@@ -568,25 +565,18 @@ function renderResults(d) {
     <tr><td><strong>Final Projection</strong></td><td></td><td><strong>${bd.final} ${unit}</strong></td></tr>
   `;
 
-  // Game Log
+  // Recent Form vs the Line
   const glSection = document.getElementById('gameLogSection');
-  if (d.last_5) {
+  if (d.recent_games) {
     glSection.style.display = 'block';
-    const glBody = document.getElementById('gameLogBody');
-    glBody.innerHTML = '';
-    d.last_5.games.forEach(g => {
-      const cls = g.hit === 'OVER' ? 'hit-over' : 'hit-under';
-      glBody.innerHTML += `<tr>
-        <td>${g.date}</td>
-        <td>${g.opponent}</td>
-        <td>${g.value} ${unit}</td>
-        <td class="${cls}">${g.hit}</td>
-      </tr>`;
-    });
+    renderGameLogChart(d.recent_games, d.prop_line, unit);
+    const vsOppText = d.vs_opponent
+      ? `${d.vs_opponent.avg} ${unit} (${d.vs_opponent.games}g)`
+      : 'No games yet';
     document.getElementById('gameLogSummary').innerHTML = `
-      <span>L5 Avg: <strong>${d.last_5.avg} ${unit}</strong></span>
-      <span>Range: <strong>${d.last_5.min}-${d.last_5.max}</strong></span>
-      <span>Hit Rate: <strong>${d.last_5.hit_count}/${d.last_5.total} OVER</strong></span>
+      <span>${d.recent_games.total}-Game Avg: <strong>${d.recent_games.avg} ${unit}</strong></span>
+      <span>Avg vs ${d.opponent}: <strong>${vsOppText}</strong></span>
+      <span>Hit Rate: <strong>${d.recent_games.hit_count}/${d.recent_games.total} OVER</strong></span>
     `;
   } else {
     glSection.style.display = 'none';
@@ -740,6 +730,60 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
         </span>
       </div>`;
   });
+}
+
+// Recent Form vs the Line: one bar per recent game, height = that game's stat
+// value, colored by whether it cleared the prop line, with a dashed reference
+// line drawn across all of them at the line itself — so a hit/miss streak
+// reads at a glance instead of needing a row-by-row table.
+function renderGameLogChart(recentGames, propLine, unit) {
+  const games = recentGames.games;
+  const svg = document.getElementById('gameLogChart');
+  if (!games.length) { svg.innerHTML = ''; return; }
+
+  const width = 700, height = 200;
+  const padTop = 22, padBottom = 26, padSide = 6;
+  const plotW = width - padSide * 2;
+  const plotH = height - padTop - padBottom;
+  const baseline = height - padBottom;
+
+  const values = games.map(g => g.value);
+  const yMax = Math.max(...values, propLine) * 1.15;
+  const y = v => baseline - (v / yMax) * plotH;
+
+  const slot = plotW / games.length;
+  const barW = Math.min(slot * 0.55, 48);
+
+  const lineY = y(propLine);
+  const lineLabelText = `LINE ${propLine}`;
+  const lineLabelW = lineLabelText.length * 6.2 + 10;
+
+  let svgContent = `
+    <line class="gl-line" x1="${padSide}" y1="${lineY.toFixed(1)}" x2="${width - padSide}" y2="${lineY.toFixed(1)}"></line>
+  `;
+
+  games.forEach((g, i) => {
+    const barH = (g.value / yMax) * plotH;
+    const x = padSide + i * slot + (slot - barW) / 2;
+    const barY = baseline - barH;
+    const cls = g.hit === 'OVER' ? 'gl-bar-over' : g.hit === 'UNDER' ? 'gl-bar-under' : 'gl-bar-push';
+    const label = g.opponent ? `vs ${g.opponent}` : '';
+    svgContent += `
+      <g class="gl-bar-group">
+        <title>${g.date}${label ? ' · ' + label : ''} · ${g.value} ${unit} · ${g.hit}</title>
+        <rect class="gl-bar ${cls}" x="${x.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(barH, 1).toFixed(1)}" rx="2"></rect>
+        <text class="gl-value-label" x="${(x + barW / 2).toFixed(1)}" y="${(barY - 6).toFixed(1)}" text-anchor="middle">${g.value}</text>
+        <text class="gl-axis-label" x="${(x + barW / 2).toFixed(1)}" y="${baseline + 15}" text-anchor="middle">${g.opponent || ''}</text>
+      </g>
+    `;
+  });
+
+  svgContent += `
+    <rect class="gl-line-label-bg" x="${(width - padSide - lineLabelW).toFixed(1)}" y="${(lineY - 17).toFixed(1)}" width="${lineLabelW.toFixed(1)}" height="14" rx="3"></rect>
+    <text class="gl-line-label" x="${width - padSide - 5}" y="${(lineY - 7).toFixed(1)}" text-anchor="end">${lineLabelText}</text>
+  `;
+
+  svg.innerHTML = svgContent;
 }
 
 // Popular Bets quick-picks: fill the form and run the same analysis flow.

@@ -195,9 +195,9 @@ def analyze():
     if "zones" in bd:
         result["zones"] = bd["zones"]
 
-    # Add game log data if available
-    if "last_5_games" in bd:
-        s = bd["last_5_games"]
+    # Add recent game-by-game data if available, for the hit-rate chart
+    if "recent_games" in bd:
+        s = bd["recent_games"]
         games = []
         for i in range(len(s["values"])):
             val = s["values"][i]
@@ -208,13 +208,19 @@ def analyze():
                 "hit": "OVER" if val > pred.prop_line else ("UNDER" if val < pred.prop_line else "PUSH"),
             })
         hit_count = sum(1 for v in s["values"] if v > pred.prop_line)
-        result["last_5"] = {
+        result["recent_games"] = {
             "games": games,
             "avg": round(s["avg"], 1),
             "min": int(s["min"]),
             "max": int(s["max"]),
             "hit_count": hit_count,
             "total": len(s["values"]),
+        }
+
+    if "vs_opponent" in bd:
+        result["vs_opponent"] = {
+            "avg": round(bd["vs_opponent"]["avg"], 1),
+            "games": bd["vs_opponent"]["games"],
         }
 
     if "real_std_dev" in bd:

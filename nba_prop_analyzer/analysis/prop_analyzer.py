@@ -233,9 +233,18 @@ class PropAnalyzer:
 
         # Add game log summary to breakdown if available
         if game_logs:
-            summary = get_game_log_summary(game_logs, prop_type, n=5)
+            summary = get_game_log_summary(game_logs, prop_type, n=10)
             if summary:
-                breakdown["last_5_games"] = summary
+                breakdown["recent_games"] = summary
+
+            vs_opp_games = [g for g in game_logs if normalize_team(g.opponent) == opp_abbr]
+            vs_opp_vals = get_stat_from_games(vs_opp_games, prop_type)
+            if vs_opp_vals:
+                breakdown["vs_opponent"] = {
+                    "avg": sum(vs_opp_vals) / len(vs_opp_vals),
+                    "games": len(vs_opp_vals),
+                }
+
             all_vals = get_stat_from_games(game_logs, prop_type)
             if all_vals:
                 import math

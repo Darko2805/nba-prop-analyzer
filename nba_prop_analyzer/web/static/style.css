@@ -697,31 +697,48 @@ body {
 .breakdown-table td:nth-child(2) { text-align: center; font-family: var(--font-mono); }
 .breakdown-table td:nth-child(3) { text-align: right; font-family: var(--font-mono); }
 
-/* Game log */
-.game-log-table {
+/* Recent Form chart */
+.chart-wrap { width: 100%; }
+
+.chart-svg {
   width: 100%;
-  font-size: 0.85rem;
-  border-collapse: collapse;
+  height: auto;
+  display: block;
 }
 
-.game-log-table th {
-  text-align: left;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-  padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--card-border);
-}
+.gl-bar { transition: opacity 0.15s; }
+.gl-bar-group:hover .gl-bar { opacity: 0.8; }
 
-.game-log-table td {
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--card-border);
+.gl-bar-over { fill: var(--green); }
+.gl-bar-under { fill: var(--red); }
+.gl-bar-push { fill: var(--text-muted); }
+
+.gl-value-label {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 11px;
+  fill: var(--text-muted);
 }
 
-.game-log-table .hit-over { color: var(--green); font-weight: 600; }
-.game-log-table .hit-under { color: var(--red); font-weight: 600; }
+.gl-axis-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--text-muted);
+}
+
+.gl-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.gl-line-label-bg { fill: var(--card); }
+
+.gl-line-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--accent);
+}
 
 .game-log-summary {
   display: flex;
