@@ -227,6 +227,14 @@ class PropAnalyzer:
             "after_zone": baseline * matchup_factor * pace_factor * zone_factor,
             "after_volume": baseline * matchup_factor * pace_factor * zone_factor * volume_factor,
             "final": adjusted,
+            # Each factor's own descriptive note, so the UI can show the real
+            # reasoning behind whichever factor ends up headlining the
+            # breakdown (see headline.py) instead of generic templated copy.
+            "matchup_note": matchup_note,
+            "pace_note": pace_note,
+            "shot_zone_note": zone_notes[0] if zone_notes else "",
+            "volume_note": volume_note,
+            "trend_note": trend_note,
         }
         if zones:
             breakdown["zones"] = zones

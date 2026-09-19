@@ -72,3 +72,36 @@ def select_headline_factor(factors: dict[str, float], prop_type: str) -> dict:
         "direction": "up" if winner_value > 1.0 else ("down" if winner_value < 1.0 else "neutral"),
         "tuned": tuned,
     }
+
+
+def summarize_signal_agreement(factors: dict[str, float], threshold: float = 0.02) -> dict:
+    """
+    Classifies each factor as agreeing with, disagreeing with, or neutral
+    relative to the overall direction the combined factors actually moved
+    the projection (up or down, from their product) — a plain "how many
+    signals point the same way" read, independent of the importance
+    weighting above. A factor within `threshold` of 1.0 counts as neutral
+    rather than forcing it to a side.
+    """
+    product = 1.0
+    for value in factors.values():
+        product *= value
+    overall_direction = "up" if product >= 1.0 else "down"
+
+    agree = disagree = neutral = 0
+    for value in factors.values():
+        if abs(value - 1.0) < threshold:
+            neutral += 1
+        elif (value > 1.0) == (overall_direction == "up"):
+            agree += 1
+        else:
+            disagree += 1
+
+    return {
+        "direction": overall_direction,
+        "agree": agree,
+        "disagree": disagree,
+        "neutral": neutral,
+        "directional_total": agree + disagree,
+        "total": len(factors),
+    }
