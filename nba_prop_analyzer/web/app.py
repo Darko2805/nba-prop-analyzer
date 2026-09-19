@@ -8,6 +8,7 @@ if _repo_root not in sys.path:
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
+from nba_prop_analyzer.analysis.headline import select_headline_factor
 from nba_prop_analyzer.config import PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
@@ -194,6 +195,20 @@ def analyze():
     # applicable to this prop type, e.g. rebounds/assists/turnovers)
     if "zones" in bd:
         result["zones"] = bd["zones"]
+
+    # Which single factor should headline the breakdown — weighted by how
+    # central each factor actually is to this prop type, not just whichever
+    # multiplier is furthest from 1.0. See headline.py.
+    result["headline_factor"] = select_headline_factor(
+        {
+            "matchup": bd["matchup"],
+            "pace": bd["pace"],
+            "shot_zone": bd["shot_zone"],
+            "volume": bd["volume"],
+            "trend": bd["trend"],
+        },
+        pred.prop_type,
+    )
 
     # Add recent game-by-game data if available, for the hit-rate chart
     if "recent_games" in bd:
