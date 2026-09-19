@@ -6,25 +6,28 @@
   <title>NBA Prop Analyzer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
 <div class="container">
-  <div class="account-bar">
-    {% if current_user %}
-      <span class="account-info">
-        <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
-        {{ current_user.name }}
-      </span>
-      <form action="/auth/logout" method="post" style="display:inline">
-        <button type="submit" class="link-btn">Log out</button>
-      </form>
-    {% elif auth_configured %}
-      <button type="button" class="link-btn" id="signInToggle">Sign in / Create account</button>
-    {% endif %}
-  </div>
+  <header class="masthead">
+    <div class="wordmark">matchup<span>edge</span></div>
+    <div class="account-bar">
+      {% if current_user %}
+        <span class="account-info">
+          <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
+          {{ current_user.name }}
+        </span>
+        <form action="/auth/logout" method="post" style="display:inline">
+          <button type="submit" class="link-btn">Log out</button>
+        </form>
+      {% elif auth_configured %}
+        <button type="button" class="link-btn" id="signInToggle">Sign in</button>
+      {% endif %}
+    </div>
+  </header>
 
   {% if not current_user and auth_configured %}
   <div class="signup-card" id="signupCard" style="display:none">
@@ -66,10 +69,10 @@
   </div>
   {% endif %}
 
-  <header>
-    <h1><span>NBA</span> Prop Analyzer</h1>
-    <p>Matchup-based probability estimates for player props</p>
-  </header>
+  <p class="lede">Enter a player and a line. See the matchup before you bet it.</p>
+
+  <div class="dossier">
+  <div class="dossier-main">
 
   <!-- Input Form -->
   <div class="form-card">
@@ -110,50 +113,8 @@
           <input type="number" id="line" step="0.5" min="0.5" placeholder="28.5" required>
         </div>
       </div>
-      <button type="submit" class="btn" id="submitBtn">Analyze Prop</button>
+      <button type="submit" class="btn" id="submitBtn">Run the matchup</button>
     </form>
-  </div>
-
-  <!-- Tonight's Games -->
-  <div class="section-card">
-    <h3>Tonight's Games</h3>
-    {% if games_today %}
-      <div class="games-grid">
-        {% for g in games_today %}
-        <div class="game-card">
-          <span class="game-time">{{ g.start_time }}</span>
-          <span class="game-matchup">{{ g.away_team }} @ {{ g.home_team }}</span>
-          <span class="game-arena">{{ g.arena }}</span>
-        </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="empty-hint">No games scheduled today.</p>
-    {% endif %}
-  </div>
-
-  <!-- Popular Bets -->
-  {% if popular_bets %}
-  <div class="section-card">
-    <h3>Popular Bets</h3>
-    <p class="empty-hint" style="margin-bottom:0.75rem;">Quick picks for well-known players — lines are their real season averages. Click to load a full analysis.</p>
-    <div class="popular-grid">
-      {% for pick in popular_bets %}
-      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
-        <span class="popular-player">{{ pick.player }}</span>
-        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }} tonight{% endif %}</span>
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- News Feed -->
-  <div class="section-card">
-    <h3>Latest NBA News</h3>
-    <div id="newsFeed" class="news-feed">
-      <p class="empty-hint">Loading news…</p>
-    </div>
   </div>
 
   <!-- Error -->
@@ -320,6 +281,56 @@
       <div class="stat-row" id="varianceRow"></div>
     </div>
   </div>
+
+  </div>
+
+  <aside class="dossier-side">
+
+    <!-- Tonight's Games -->
+    <div class="side-block">
+      <h3>Tonight</h3>
+      {% if games_today %}
+        <div class="games-list">
+          {% for g in games_today %}
+          <div class="game-row">
+            <span class="game-time">{{ g.start_time }}</span>
+            <span class="game-matchup">{{ g.away_team }} @ {{ g.home_team }}</span>
+            <span class="game-arena">{{ g.arena }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="empty-hint">No games scheduled today.</p>
+      {% endif %}
+    </div>
+
+    <!-- Popular Bets -->
+    {% if popular_bets %}
+    <div class="side-block">
+      <h3>Quick looks</h3>
+      <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
+      <div class="popular-list">
+        {% for pick in popular_bets %}
+        <button type="button" class="popular-row" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
+          <span class="popular-player">{{ pick.player }}</span>
+          <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- News Feed -->
+    <div class="side-block">
+      <h3>League wire</h3>
+      <div id="newsFeed" class="news-feed">
+        <p class="empty-hint">Loading news…</p>
+      </div>
+    </div>
+
+  </aside>
+
+  </div>
 </div>
 
 <script>
@@ -456,7 +467,7 @@ form.addEventListener('submit', async (e) => {
   } finally {
     loading.classList.remove('active');
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Analyze Prop';
+    submitBtn.textContent = 'Run the matchup';
   }
 });
 
@@ -689,7 +700,7 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
 }
 
 // Popular Bets quick-picks: fill the form and run the same analysis flow.
-document.querySelectorAll('.popular-card').forEach((card) => {
+document.querySelectorAll('.popular-row').forEach((card) => {
   card.addEventListener('click', () => {
     document.getElementById('player').value = card.dataset.player;
     document.getElementById('opponent').value = card.dataset.opponent || '';
