@@ -77,7 +77,7 @@ def calculate_shot_zone_exploitation(
     average, and the gap between them (positive = exploitable) — enough to
     drive a half-court exploitation diagram in the UI. Empty when not applicable.
     """
-    if prop_type not in ("points", "pra", "3pm", "fgm", "fga", "3pa"):
+    if prop_type not in ("points", "3pm", "fgm", "fga", "3pa"):
         return 1.0, ["~ Zone analysis not applicable for this prop"], {}
 
     all_opponent_defenses = all_opponent_defenses or {}
@@ -203,22 +203,14 @@ def calculate_shot_zone_exploitation(
     elif coverage_notes:
         steps.append(f"- Opponent closes primary zones: {', '.join(coverage_notes[:2])}")
 
-    # ── Step 5: foul / FT downstream effect ─────────────────────────────
-    foul_boost = 0.0
-    if at_rim > 0.25 and player.ft_rate > 0.25:
-        opp_fta = opponent_defense.opp_fta or _LEAGUE["opp_fta_pg"]
-        foul_excess = (opp_fta - _LEAGUE["opp_fta_pg"]) / _LEAGUE["opp_fta_pg"]
-        if foul_excess > 0.04:
-            foul_boost = foul_excess * player.ft_rate * 0.4
-            steps.append(
-                f"+ Foul/bonus factor: opp allows {opp_fta:.1f} FTA/game, "
-                f"player FT rate {player.ft_rate:.2f} (P&R/drive exploitation)"
-            )
-
     # ── Final factor ─────────────────────────────────────────────────────
     # weighted_severity/three_severity are the non-linear layer on top of the
     # plain gap-vs-average term: zero for an average defense, growing fast
     # only once a zone's rank is genuinely in the league's extreme thirds.
+    # (Free-throw generation used to get a small ad-hoc bonus folded in here
+    # for high-rim-frequency players; it's now its own dedicated factor in
+    # free_throw.py, applied more generally rather than gated behind
+    # at_rim > 0.25, so it isn't double-counted here.)
     if prop_type in ("3pm", "3pa"):
         # For 3-point props (makes or attempts), weight three_gap much more heavily
         base_factor = 1.0 + three_gap * 1.0 + weighted_gap * 0.5 + three_severity * 1.0 + weighted_severity * 0.5
@@ -226,7 +218,7 @@ def calculate_shot_zone_exploitation(
         # Amplify: weighted_gap of 0.05 → ~+10% factor
         base_factor = 1.0 + weighted_gap * 2.0 + weighted_severity * 1.0
 
-    factor = base_factor + foul_boost
+    factor = base_factor
     factor = max(0.78, min(factor, 1.28))
 
     # Summary line

@@ -27,15 +27,26 @@ _IMPORTANCE_WEIGHTS: dict[str, dict[str, float]] = {
     "3pa": {"matchup": 0.6, "pace": 0.9, "shot_zone": 1.4, "volume": 1.2, "trend": 0.7},
 }
 
+# Points and PRA share the same table: PRA is a genuine 3-way blend of
+# points/rebounds/assists (see PropAnalyzer._run_combo_factors), so its
+# blended factor values are already honestly proportioned by how much of
+# PRA's baseline actually comes from scoring — no separate weighting logic
+# needed to keep shot-zone/free-throw from over-influencing PRA the way a
+# flat "PRA = points" treatment used to.
+_POINTS_WEIGHTS = {"matchup": 0.7, "pace": 0.9, "shot_zone": 1.2, "volume": 1.1, "free_throw": 1.0, "trend": 0.7}
+_IMPORTANCE_WEIGHTS["points"] = _POINTS_WEIGHTS
+_IMPORTANCE_WEIGHTS["pra"] = _POINTS_WEIGHTS
+
 # Equal weighting (behaves like plain "furthest from 1.0") for any prop
 # type not yet in _IMPORTANCE_WEIGHTS above.
-_DEFAULT_WEIGHTS = {"matchup": 1.0, "pace": 1.0, "shot_zone": 1.0, "volume": 1.0, "trend": 1.0}
+_DEFAULT_WEIGHTS = {"matchup": 1.0, "pace": 1.0, "shot_zone": 1.0, "volume": 1.0, "free_throw": 1.0, "trend": 1.0}
 
 _FACTOR_LABELS = {
     "matchup": "Matchup",
     "pace": "Pace",
     "shot_zone": "Shot Zone",
     "volume": "Volume",
+    "free_throw": "Free Throws",
     "trend": "Trend",
 }
 

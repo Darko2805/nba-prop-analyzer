@@ -9,14 +9,18 @@ PROP_TYPES = [
     "pts_ast", "pts_reb", "ast_reb",
 ]
 
-# Two-stat combo props are computed by running each component through the full
-# pipeline separately and blending, weighted by each component's baseline share.
-# (pra is a 3-way combo but is simple/dominant enough to keep as its own
-# first-class type below, same as before.)
+# Combo props are computed by running each component through the full
+# pipeline separately and blending, weighted by each component's baseline
+# share. pra is a genuine 3-way combo (not a first-class type sharing
+# points' factors directly) so that e.g. shot-zone exploitation, which
+# only speaks to the scoring third of PRA, is naturally diluted to
+# whatever share of PRA's baseline actually comes from points, rather
+# than carrying its full points-calibrated strength into the combined number.
 COMBO_PROP_TYPES = {
     "pts_ast": ("points", "assists"),
     "pts_reb": ("points", "rebounds"),
     "ast_reb": ("assists", "rebounds"),
+    "pra": ("points", "rebounds", "assists"),
 }
 
 # Empirical coefficients of variation for NBA per-game stats

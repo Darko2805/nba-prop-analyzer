@@ -182,11 +182,13 @@ def analyze():
             "pace": round(bd["pace"], 3),
             "shot_zone": round(bd["shot_zone"], 3),
             "volume": round(bd["volume"], 3),
+            "free_throw": round(bd["free_throw"], 3),
             "trend": round(bd["trend"], 3),
             "after_matchup": round(bd["after_matchup"], 1),
             "after_pace": round(bd["after_pace"], 1),
             "after_zone": round(bd["after_zone"], 1),
             "after_volume": round(bd["after_volume"], 1),
+            "after_ft": round(bd["after_ft"], 1),
             "final": round(bd["final"], 1),
         },
     }
@@ -204,6 +206,7 @@ def analyze():
         "pace": bd["pace"],
         "shot_zone": bd["shot_zone"],
         "volume": bd["volume"],
+        "free_throw": bd["free_throw"],
         "trend": bd["trend"],
     }
     headline = select_headline_factor(factor_values, pred.prop_type)

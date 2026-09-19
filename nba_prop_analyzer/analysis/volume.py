@@ -19,8 +19,8 @@ def calculate_volume_adjustment(
     the 3PT path so far, to rank the opponent's 3PA-allowed against the
     full league instead of a fixed average — see severity.py.
     """
-    if prop_type in ("points", "pra"):
-        return _scoring_volume(player, player_team, opponent_defense, league_avg)
+    if prop_type == "points":
+        return _scoring_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type in ("fgm", "fga"):
         return _fg_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type in ("3pm", "3pa"):
@@ -34,11 +34,16 @@ def calculate_volume_adjustment(
     return 1.0, "~ No volume adjustment"
 
 
+_PPG_SEVERITY_SCALE = 0.10
+_PPG_SEVERITY_EXPONENT = 1.6
+
+
 def _scoring_volume(
     player: PlayerStats,
     player_team: TeamProfile,
     opp: OpponentDefense,
     league_avg: dict,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     """Compare player scoring volume vs opponent points allowed."""
     avg_ppg = league_avg.get("ppg", 114.0)
@@ -50,10 +55,22 @@ def _scoring_volume(
     player_share = player.ppg / max(player_team.ppg, 1) if player_team.ppg > 0 else 0.2
 
     # Volume factor: if opponent gives up more points, there's more to go around
-    factor = 1.0 + (opp_ppg_ratio - 1.0) * player_share * 2
-    factor = max(0.92, min(factor, 1.08))
+    base_factor = 1.0 + (opp_ppg_ratio - 1.0) * player_share * 2
 
-    if factor > 1.02:
+    severity = 0.0
+    rank = n = 0
+    if all_opponent_defenses and opp.opp_ppg > 0:
+        population = [o.opp_ppg for o in all_opponent_defenses.values() if o.opp_ppg > 0]
+        pct, rank, n = weakness_percentile(opp.opp_ppg, population)
+        severity = severity_bonus(pct, scale=_PPG_SEVERITY_SCALE, exponent=_PPG_SEVERITY_EXPONENT) * player_share
+
+    factor = base_factor + severity
+    factor = max(0.88, min(factor, 1.12))
+
+    if n >= 10 and (rank / n >= 2 / 3 or rank / n <= 1 / 3) and abs(severity) > 0.01:
+        strength = "high-volume" if severity > 0 else "low-volume"
+        note = f"{'+' if severity > 0 else '-'} Opponent is a {strength} scoring matchup: allows {opp.opp_ppg:.1f} PPG, ranks {rank}/{n} in the league"
+    elif factor > 1.02:
         note = f"+ Volume boost: opponent allows {opp.opp_ppg:.1f} PPG (player has {player_share:.1%} of team scoring)"
     elif factor < 0.98:
         note = f"- Volume drop: opponent limits scoring to {opp.opp_ppg:.1f} PPG"
