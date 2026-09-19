@@ -191,13 +191,13 @@ class PropAnalyzer:
                 player, player_team, opponent_defense, self.league_avg, prop_type
             )
             pace_factor, pace_note = calculate_pace_factor(
-                player_team, opponent_team, self.league_avg.get("pace", 100.0)
+                player_team, opponent_team, self.league_avg.get("pace", 100.0), self.team_profiles
             )
             zone_factor, zone_notes, zones = calculate_shot_zone_exploitation(
                 player, player_team, opponent_defense, prop_type, self.opponent_defenses
             )
             volume_factor, volume_note = calculate_volume_adjustment(
-                player, player_team, opponent_defense, self.league_avg, prop_type
+                player, player_team, opponent_defense, self.league_avg, prop_type, self.opponent_defenses
             )
             trend_factor, trend_note = estimate_trend_factor(
                 player, prop_type, game_logs=game_logs
@@ -315,7 +315,7 @@ class PropAnalyzer:
             player, player_team, opponent_defense, self.league_avg, comp_b
         )
         pace_factor, pace_note = calculate_pace_factor(
-            player_team, opponent_team, self.league_avg.get("pace", 100.0)
+            player_team, opponent_team, self.league_avg.get("pace", 100.0), self.team_profiles
         )
         zone_a, zone_notes_a, zones_a = calculate_shot_zone_exploitation(
             player, player_team, opponent_defense, comp_a, self.opponent_defenses
@@ -324,10 +324,10 @@ class PropAnalyzer:
             player, player_team, opponent_defense, comp_b, self.opponent_defenses
         )
         volume_a, volume_note_a = calculate_volume_adjustment(
-            player, player_team, opponent_defense, self.league_avg, comp_a
+            player, player_team, opponent_defense, self.league_avg, comp_a, self.opponent_defenses
         )
         volume_b, volume_note_b = calculate_volume_adjustment(
-            player, player_team, opponent_defense, self.league_avg, comp_b
+            player, player_team, opponent_defense, self.league_avg, comp_b, self.opponent_defenses
         )
         trend_a, trend_note_a = estimate_trend_factor(player, comp_a, game_logs=game_logs)
         trend_b, trend_note_b = estimate_trend_factor(player, comp_b, game_logs=game_logs)

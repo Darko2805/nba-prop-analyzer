@@ -18,6 +18,7 @@ Returns a multiplicative factor and a list of annotated step strings.
 from __future__ import annotations
 
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense
+from .severity import weakness_percentile, severity_bonus as _curve_bonus
 
 # 2025-26 NBA approximate league-average zone benchmarks. Used as a fallback
 # only when we don't have every team's data to rank against (see
@@ -40,55 +41,17 @@ _SEVERITY_SCALE = 0.14
 _SEVERITY_EXPONENT = 1.6
 
 
-def _defense_rank(value: float, population: list[float]) -> tuple[int, int]:
-    """
-    1-indexed rank of `value` among `population` for a "lower is stingier
-    defense" stat (accuracy allowed) — 1 = best defense in the league in this
-    zone, n = most exploitable. Ties share the lower rank.
-    """
-    if not population:
-        return 0, 0
-    n = len(population)
-    rank = sum(1 for v in population if v < value) + 1
-    return rank, n
-
-
 def _zone_weakness(value: float, field: str, all_opponent_defenses: dict) -> tuple[float, int, int]:
-    """
-    Where this opponent's allowed accuracy in one zone ranks against every
-    other team's, this season — not against a fixed league-average number.
-    Returns (percentile, rank, league_size): percentile 0.0 = the stingiest
-    defense in the league in this zone, 1.0 = the most exploitable, 0.5 =
-    dead average. Falls back to a neutral 0.5 when we don't have full-league
-    data to rank against (e.g. a data source hiccup), so a missing input
-    never accidentally reads as an extreme matchup.
-    """
+    """Where this opponent's allowed accuracy in one zone ranks against every other team's, this season. See severity.weakness_percentile."""
     population = [
         getattr(o, field, 0.0) for o in all_opponent_defenses.values()
         if getattr(o, field, 0.0) > 0
     ] if all_opponent_defenses else []
-    rank, n = _defense_rank(value, population)
-    if n <= 1:
-        return 0.5, rank, n
-    return (rank - 1) / (n - 1), rank, n
+    return weakness_percentile(value, population)
 
 
 def _severity_bonus(weakness_pct: float) -> float:
-    """
-    Rewards (or penalizes) a zone matchup based on how far into the extreme
-    thirds of the league the opponent's defense actually sits, not just
-    whether it's above or below average. Zero at league-average (0.5),
-    ramping up convexly toward the bottom third (positive = exploit) and top
-    third (negative = shut down) — modest right at the boundary, accelerating
-    hard only once the mismatch is genuinely severe (e.g. a bottom-3 defense),
-    so a marginal gap isn't rewarded the same as a historic one.
-    """
-    centered = weakness_pct - 0.5  # -0.5 (best defense) .. +0.5 (worst defense)
-    if centered == 0:
-        return 0.0
-    magnitude = min(abs(centered) * 2, 1.0)  # 0 at average, 1 at the extreme
-    sign = 1.0 if centered > 0 else -1.0
-    return sign * (magnitude ** _SEVERITY_EXPONENT) * _SEVERITY_SCALE
+    return _curve_bonus(weakness_pct, scale=_SEVERITY_SCALE, exponent=_SEVERITY_EXPONENT)
 
 
 def calculate_shot_zone_exploitation(

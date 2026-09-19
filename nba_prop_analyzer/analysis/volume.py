@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense
+from .severity import weakness_percentile, severity_bonus
 
 
 def calculate_volume_adjustment(
@@ -7,17 +10,21 @@ def calculate_volume_adjustment(
     opponent_defense: OpponentDefense,
     league_avg: dict,
     prop_type: str,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     """
     Compares the player's volume (shots, rebounds, assists) against
     what the opponent typically allows. Returns (factor, explanation).
+    `all_opponent_defenses` (every team's OpponentDefense) is only used by
+    the 3PT path so far, to rank the opponent's 3PA-allowed against the
+    full league instead of a fixed average — see severity.py.
     """
     if prop_type in ("points", "pra"):
         return _scoring_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type in ("fgm", "fga"):
         return _fg_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type in ("3pm", "3pa"):
-        return _three_point_volume(player, player_team, opponent_defense, league_avg)
+        return _three_point_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "rebounds":
         return _rebound_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type == "assists":
@@ -55,17 +62,36 @@ def _scoring_volume(
     return factor, note
 
 
+_3PA_SEVERITY_SCALE = 0.10
+_3PA_SEVERITY_EXPONENT = 1.6
+
+
 def _three_point_volume(
     player: PlayerStats,
     player_team: TeamProfile,
     opp: OpponentDefense,
     league_avg: dict,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     avg_3pa_allowed = 35.0
-    factor = opp.opp_3pa / max(avg_3pa_allowed, 1) if opp.opp_3pa > 0 else 1.0
-    factor = max(0.90, min(factor, 1.10))
+    base_factor = opp.opp_3pa / max(avg_3pa_allowed, 1) if opp.opp_3pa > 0 else 1.0
 
-    if factor > 1.03:
+    severity = 0.0
+    rank = n = 0
+    if all_opponent_defenses:
+        population = [o.opp_3pa for o in all_opponent_defenses.values() if o.opp_3pa > 0]
+        pct, rank, n = weakness_percentile(opp.opp_3pa, population)
+        severity = severity_bonus(pct, scale=_3PA_SEVERITY_SCALE, exponent=_3PA_SEVERITY_EXPONENT)
+
+    factor = base_factor + severity
+    factor = max(0.85, min(factor, 1.15))
+
+    if n >= 10 and abs(severity) > 0.02:
+        if severity > 0:
+            note = f"+ High-volume 3PT defense: opponent allows {opp.opp_3pa:.1f} 3PA/game, ranks {rank}/{n} in the league"
+        else:
+            note = f"- Low-volume 3PT defense: opponent allows {opp.opp_3pa:.1f} 3PA/game, ranks {rank}/{n} in the league"
+    elif factor > 1.03:
         note = f"+ Opponent allows {opp.opp_3pa:.1f} 3PA/game (high volume)"
     elif factor < 0.97:
         note = f"- Opponent limits to {opp.opp_3pa:.1f} 3PA/game (low volume)"
