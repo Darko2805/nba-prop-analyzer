@@ -56,11 +56,27 @@ _IMPORTANCE_WEIGHTS["rebounds"] = {
     "free_throw": 1.0, "teammate_efficiency": 1.0, "trend": 0.7,
 }
 
+# FGM and FGA deliberately do NOT share a table, even though they share
+# every underlying factor function — same "potential vs. actual" split
+# already established for assists (a pass vs. a made assist). FGA is
+# pure opportunity, unaffected by make/miss, so pace/volume dominate.
+# FGM is opportunity times conversion, so shot-zone/matchup (both real
+# accuracy signals) and rest_fatigue (an eFG%-specific effect, near-zero
+# for FGA on purpose) carry more weight there.
+_IMPORTANCE_WEIGHTS["fga"] = {
+    "matchup": 0.6, "pace": 1.2, "shot_zone": 0.7, "volume": 1.3,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "rest_fatigue": 0.3, "trend": 0.7,
+}
+_IMPORTANCE_WEIGHTS["fgm"] = {
+    "matchup": 1.0, "pace": 0.9, "shot_zone": 1.3, "volume": 0.9,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "rest_fatigue": 1.0, "trend": 0.7,
+}
+
 # Equal weighting (behaves like plain "furthest from 1.0") for any prop
 # type not yet in _IMPORTANCE_WEIGHTS above.
 _DEFAULT_WEIGHTS = {
     "matchup": 1.0, "pace": 1.0, "shot_zone": 1.0, "volume": 1.0,
-    "free_throw": 1.0, "teammate_efficiency": 1.0, "trend": 1.0,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "rest_fatigue": 1.0, "trend": 1.0,
 }
 
 _FACTOR_LABELS = {
@@ -70,6 +86,7 @@ _FACTOR_LABELS = {
     "volume": "Volume",
     "free_throw": "Free Throws",
     "teammate_efficiency": "Teammate Efficiency",
+    "rest_fatigue": "Schedule Fatigue",
     "trend": "Trend",
 }
 

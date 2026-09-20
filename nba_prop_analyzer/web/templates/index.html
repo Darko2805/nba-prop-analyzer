@@ -814,7 +814,8 @@ function factorDelta(bd, factor) {
     case 'volume': return bd.after_volume - bd.after_zone;
     case 'free_throw': return bd.after_ft - bd.after_volume;
     case 'teammate_efficiency': return bd.after_teammate - bd.after_ft;
-    case 'trend': return bd.final - bd.after_teammate;
+    case 'rest_fatigue': return bd.after_rest - bd.after_teammate;
+    case 'trend': return bd.final - bd.after_rest;
     default: return 0;
   }
 }
@@ -841,6 +842,7 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
     { key: 'volume',    label: 'VOLUME',    text: `x${bd.volume}` },
     { key: 'free_throw', label: 'FT RATE',  text: `x${bd.free_throw}` },
     { key: 'teammate_efficiency', label: 'TEAMMATE EFF', text: `x${bd.teammate_efficiency}` },
+    { key: 'rest_fatigue', label: 'REST',    text: `x${bd.rest_fatigue}` },
     { key: 'trend',     label: 'TREND',     text: `x${bd.trend}` },
     { key: null,        label: 'FINAL',     text: `${bd.final}`, final: true },
   ];

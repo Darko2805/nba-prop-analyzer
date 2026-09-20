@@ -4,7 +4,7 @@ from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
 from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent_zone_defense
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
-from ..data.team_mapping import normalize_team
+from ..data.team_mapping import normalize_team, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
@@ -12,6 +12,7 @@ from .shot_zone import calculate_shot_zone_exploitation
 from .volume import calculate_volume_adjustment
 from .free_throw import calculate_free_throw_factor
 from .teammate_efficiency import calculate_teammate_efficiency_factor
+from .rest_fatigue import calculate_rest_factor
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
 from .probability import estimate_probability, classify_confidence
 
@@ -186,7 +187,8 @@ class PropAnalyzer:
         if prop_type in COMBO_PROP_TYPES:
             baseline, matchup_factor, matchup_note, pace_factor, pace_note, \
                 zone_factor, zone_notes, zones, volume_factor, volume_note, \
-                ft_factor, ft_note, teammate_factor, teammate_note, trend_factor, trend_note = \
+                ft_factor, ft_note, teammate_factor, teammate_note, \
+                rest_factor, rest_note, trend_factor, trend_note = \
                 self._run_combo_factors(
                     player, player_team, opponent_team, opponent_defense, prop_type, game_logs
                 )
@@ -211,6 +213,10 @@ class PropAnalyzer:
             teammate_factor, teammate_note = calculate_teammate_efficiency_factor(
                 player_team, prop_type, self.team_profiles
             )
+            rest_factor, rest_note = calculate_rest_factor(
+                player_team.abbreviation, opp_abbr, prop_type,
+                fetch_back_to_back_teams(), fetch_three_in_four_teams(),
+            )
             trend_factor, trend_note = estimate_trend_factor(
                 player, prop_type, game_logs=game_logs
             )
@@ -218,7 +224,7 @@ class PropAnalyzer:
         # Compute adjusted prediction
         adjusted = (
             baseline * matchup_factor * pace_factor * zone_factor * volume_factor
-            * ft_factor * teammate_factor * trend_factor
+            * ft_factor * teammate_factor * rest_factor * trend_factor
         )
 
         # Probability (with real variance if available)
@@ -228,10 +234,11 @@ class PropAnalyzer:
         confidence = classify_confidence(over_prob)
 
         # Collect factors: zone_notes is a list (multiple step lines)
-        key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, ft_note, teammate_note, trend_note]
+        key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, ft_note, teammate_note, rest_note, trend_note]
 
         after_volume = baseline * matchup_factor * pace_factor * zone_factor * volume_factor
         after_ft = after_volume * ft_factor
+        after_teammate = after_ft * teammate_factor
         breakdown = {
             "baseline": baseline,
             "matchup": matchup_factor,
@@ -240,13 +247,15 @@ class PropAnalyzer:
             "volume": volume_factor,
             "free_throw": ft_factor,
             "teammate_efficiency": teammate_factor,
+            "rest_fatigue": rest_factor,
             "trend": trend_factor,
             "after_matchup": baseline * matchup_factor,
             "after_pace": baseline * matchup_factor * pace_factor,
             "after_zone": baseline * matchup_factor * pace_factor * zone_factor,
             "after_volume": after_volume,
             "after_ft": after_ft,
-            "after_teammate": after_ft * teammate_factor,
+            "after_teammate": after_teammate,
+            "after_rest": after_teammate * rest_factor,
             "final": adjusted,
             # Each factor's own descriptive note, so the UI can show the real
             # reasoning behind whichever factor ends up headlining the
@@ -257,6 +266,7 @@ class PropAnalyzer:
             "volume_note": volume_note,
             "free_throw_note": ft_note,
             "teammate_efficiency_note": teammate_note,
+            "rest_fatigue_note": rest_note,
             "trend_note": trend_note,
         }
         if zones:
@@ -396,8 +406,15 @@ class PropAnalyzer:
         if not zone_notes:
             zone_notes = ["~ Zone analysis not applicable for this combo"]
 
+        # rest_fatigue only ever applies to "fgm", which is never a
+        # component of any combo (pts_ast/pts_reb/ast_reb/pra are built
+        # from points/rebounds/assists), so it's a direct no-op here
+        # rather than looping a call that can never return anything else.
+        rest_factor, rest_note = 1.0, "~ Rest/schedule effect not applicable for this combo"
+
         return (
             baseline, matchup_factor, matchup_note, pace_factor, pace_note,
             zone_factor, zone_notes, zones, volume_factor, volume_note,
-            ft_factor, ft_note, teammate_factor, teammate_note, trend_factor, trend_note,
+            ft_factor, ft_note, teammate_factor, teammate_note,
+            rest_factor, rest_note, trend_factor, trend_note,
         )

@@ -184,6 +184,7 @@ def analyze():
             "volume": round(bd["volume"], 3),
             "free_throw": round(bd["free_throw"], 3),
             "teammate_efficiency": round(bd["teammate_efficiency"], 3),
+            "rest_fatigue": round(bd["rest_fatigue"], 3),
             "trend": round(bd["trend"], 3),
             "after_matchup": round(bd["after_matchup"], 1),
             "after_pace": round(bd["after_pace"], 1),
@@ -191,6 +192,7 @@ def analyze():
             "after_volume": round(bd["after_volume"], 1),
             "after_ft": round(bd["after_ft"], 1),
             "after_teammate": round(bd["after_teammate"], 1),
+            "after_rest": round(bd["after_rest"], 1),
             "final": round(bd["final"], 1),
         },
     }
@@ -210,6 +212,7 @@ def analyze():
         "volume": bd["volume"],
         "free_throw": bd["free_throw"],
         "teammate_efficiency": bd["teammate_efficiency"],
+        "rest_fatigue": bd["rest_fatigue"],
         "trend": bd["trend"],
     }
     headline = select_headline_factor(factor_values, pred.prop_type)

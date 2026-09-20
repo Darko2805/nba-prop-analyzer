@@ -131,6 +131,81 @@ def espn_headshot_url(espn_player_id: str) -> str:
     return f"https://a.espncdn.com/i/headshots/nba/players/full/{espn_player_id}.png"
 
 
+def _fetch_teams_playing_on(date) -> set:
+    """
+    Team abbreviations with a game on the given date, from ESPN's public
+    scoreboard API. Unlike basketball-reference, this works live from
+    Render (no 403), so no snapshot/pre-fetch pipeline is needed — cached
+    per calendar date so a long-lived server still picks up a new day's
+    game without a restart. Returns an empty set on any failure so a
+    schedule hiccup never breaks an analysis.
+    """
+    date_str = date.strftime("%Y%m%d")
+    cache_key = f"espn_scoreboard_{date_str}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    teams = set()
+    try:
+        resp = requests.get(
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}",
+            timeout=8,
+        )
+        resp.raise_for_status()
+        for event in resp.json().get("events", []):
+            competitors = (event.get("competitions") or [{}])[0].get("competitors", [])
+            for c in competitors:
+                raw_abbr = (c.get("team") or {}).get("abbreviation", "")
+                abbr = normalize_team(raw_abbr) if raw_abbr else None
+                if abbr:
+                    teams.add(abbr)
+    except Exception:
+        teams = set()
+
+    cache.set(cache_key, teams)
+    return teams
+
+
+def fetch_back_to_back_teams(today=None) -> set:
+    """
+    Team abbreviations that played YESTERDAY relative to `today` — i.e.
+    candidates for "on the second night of a back-to-back" if they also
+    have a game today.
+    """
+    import datetime as _datetime
+
+    if today is None:
+        today = _datetime.date.today()
+    yesterday = today - _datetime.timedelta(days=1)
+    return _fetch_teams_playing_on(yesterday)
+
+
+def fetch_three_in_four_teams(today=None) -> set:
+    """
+    Team abbreviations with at least 2 games in the 3 nights before
+    `today` — i.e. playing their 3rd game in a 4-night window tonight if
+    they also have a game today. A milder, more cumulative fatigue
+    condition than a literal back-to-back (and the two overlap often but
+    not always — e.g. a team that played two nights ago and last night
+    is both; a team that played three and one nights ago but rested
+    yesterday hits this without being on a back-to-back tonight).
+    """
+    import datetime as _datetime
+    from collections import Counter
+
+    if today is None:
+        today = _datetime.date.today()
+
+    game_counts: Counter = Counter()
+    for days_back in (1, 2, 3):
+        day = today - _datetime.timedelta(days=days_back)
+        for abbr in _fetch_teams_playing_on(day):
+            game_counts[abbr] += 1
+
+    return {abbr for abbr, count in game_counts.items() if count >= 2}
+
+
 def normalize_team(name: str):
     name = name.strip()
     if name.upper() in TEAM_ABBR_MAP:
