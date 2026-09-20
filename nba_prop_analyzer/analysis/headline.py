@@ -97,6 +97,22 @@ def _blend_weights(*tables: dict[str, float]) -> dict[str, float]:
     return {k: sum(t.get(k, 1.0) for t in tables) / len(tables) for k in keys}
 
 
+# Turnovers: matchup weighted highest (1.2, same tier as rebounds') now
+# that it's a real dual-signal calculation -- opponent steals forced
+# (active ball pressure) and dead-ball turnovers forced (opponent
+# sloppiness), both ranked against the league -- rather than one flat
+# forced-turnover ratio. Volume is a real, player-specific signal (their
+# own share of the team's shot volume) but a rougher proxy than matchup's
+# now-precise defensive-identity split, so it sits at the plain default
+# rather than getting bumped up. shot_zone/free_throw/teammate_efficiency/
+# rest_fatigue are structural no-ops for this prop (always exactly 1.0,
+# zero deviation), so their weight never actually matters -- left at the
+# neutral default for consistency rather than omitted.
+_IMPORTANCE_WEIGHTS["turnovers"] = {
+    "matchup": 1.2, "pace": 0.9, "shot_zone": 1.0, "volume": 1.0,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "rest_fatigue": 1.0, "trend": 0.7,
+}
+
 _IMPORTANCE_WEIGHTS["pts_ast"] = _blend_weights(_POINTS_WEIGHTS, _IMPORTANCE_WEIGHTS["assists"])
 _IMPORTANCE_WEIGHTS["pts_reb"] = _blend_weights(_POINTS_WEIGHTS, _IMPORTANCE_WEIGHTS["rebounds"])
 _IMPORTANCE_WEIGHTS["ast_reb"] = _blend_weights(_IMPORTANCE_WEIGHTS["assists"], _IMPORTANCE_WEIGHTS["rebounds"])
