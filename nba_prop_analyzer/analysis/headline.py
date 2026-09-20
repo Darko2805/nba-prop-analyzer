@@ -74,6 +74,33 @@ _IMPORTANCE_WEIGHTS["fgm"] = {
     "free_throw": 1.0, "teammate_efficiency": 1.0, "rest_fatigue": 1.0, "trend": 0.7,
 }
 
+
+def _blend_weights(*tables: dict[str, float]) -> dict[str, float]:
+    """
+    Averages per-factor importance across two (or more) already-tuned
+    tables -- a factor missing from one side (e.g. teammate_efficiency
+    isn't in points' table) falls back to 1.0, the same default that
+    table's own factors would get if select_headline_factor ever looked
+    them up directly. Used for the two-stat combo props below: pra
+    reuses points' table wholesale since points dominates its baseline
+    share, but pts_ast/pts_reb/ast_reb split their baseline much closer
+    to 50/50 between two DIFFERENT factor tables, so neither side's
+    table alone represents "how central is this factor" for the combo.
+    The blended VALUE each factor carries is already correctly diluted
+    by baseline share (see _run_combo_factors) -- this is a separate
+    question of how reliable/central each factor generically is for
+    interpreting the combo, so a straight average of both components'
+    own centrality ratings is the natural combination, not a
+    baseline-share-weighted one.
+    """
+    keys = set().union(*(t.keys() for t in tables))
+    return {k: sum(t.get(k, 1.0) for t in tables) / len(tables) for k in keys}
+
+
+_IMPORTANCE_WEIGHTS["pts_ast"] = _blend_weights(_POINTS_WEIGHTS, _IMPORTANCE_WEIGHTS["assists"])
+_IMPORTANCE_WEIGHTS["pts_reb"] = _blend_weights(_POINTS_WEIGHTS, _IMPORTANCE_WEIGHTS["rebounds"])
+_IMPORTANCE_WEIGHTS["ast_reb"] = _blend_weights(_IMPORTANCE_WEIGHTS["assists"], _IMPORTANCE_WEIGHTS["rebounds"])
+
 # Equal weighting (behaves like plain "furthest from 1.0") for any prop
 # type not yet in _IMPORTANCE_WEIGHTS above.
 _DEFAULT_WEIGHTS = {
