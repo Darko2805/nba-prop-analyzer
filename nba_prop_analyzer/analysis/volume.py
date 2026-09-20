@@ -22,7 +22,7 @@ def calculate_volume_adjustment(
     if prop_type == "points":
         return _scoring_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type in ("fgm", "fga"):
-        return _fg_volume(player, player_team, opponent_defense, league_avg)
+        return _fg_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type in ("3pm", "3pa"):
         return _three_point_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "rebounds":
@@ -157,11 +157,16 @@ def _rebound_volume(
     return factor, note
 
 
+_FGA_SEVERITY_SCALE = 0.09
+_FGA_SEVERITY_EXPONENT = 1.6
+
+
 def _fg_volume(
     player: PlayerStats,
     player_team: TeamProfile,
     opp: OpponentDefense,
     league_avg: dict,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     """Shot-attempt volume: opponent's FGA allowed vs league average, weighted by the player's shot share."""
     avg_fga = league_avg.get("fga", 88.0)
@@ -169,10 +174,22 @@ def _fg_volume(
 
     player_share = player.fga_pg / max(player_team.fga, 1) if player_team.fga > 0 else 0.15
 
-    factor = 1.0 + (opp_fga_ratio - 1.0) * player_share * 2
-    factor = max(0.92, min(factor, 1.08))
+    base_factor = 1.0 + (opp_fga_ratio - 1.0) * player_share * 2
 
-    if factor > 1.02:
+    severity = 0.0
+    rank = n = 0
+    if all_opponent_defenses and opp.opp_fga > 0:
+        population = [o.opp_fga for o in all_opponent_defenses.values() if o.opp_fga > 0]
+        pct, rank, n = weakness_percentile(opp.opp_fga, population)
+        severity = severity_bonus(pct, scale=_FGA_SEVERITY_SCALE, exponent=_FGA_SEVERITY_EXPONENT) * player_share
+
+    factor = base_factor + severity
+    factor = max(0.88, min(factor, 1.12))
+
+    if n >= 10 and (rank / n >= 2 / 3 or rank / n <= 1 / 3) and abs(severity) > 0.01:
+        strength = "high-volume" if severity > 0 else "low-volume"
+        note = f"{'+' if severity > 0 else '-'} Opponent is a {strength} shot-attempt matchup: allows {opp.opp_fga:.1f} FGA/game, ranks {rank}/{n} in the league"
+    elif factor > 1.02:
         note = f"+ Shot volume boost: opponent allows {opp.opp_fga:.1f} FGA/game (player takes {player_share:.1%} of team shots)"
     elif factor < 0.98:
         note = f"- Shot volume drop: opponent limits shots to {opp.opp_fga:.1f} FGA/game"
