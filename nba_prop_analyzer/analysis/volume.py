@@ -30,7 +30,7 @@ def calculate_volume_adjustment(
     elif prop_type == "assists":
         return _assist_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "turnovers":
-        return _turnover_volume(player, opponent_defense)
+        return _turnover_volume(player, player_team)
     return 1.0, "~ No volume adjustment"
 
 
@@ -200,19 +200,32 @@ def _fg_volume(
 
 def _turnover_volume(
     player: PlayerStats,
-    opp: OpponentDefense,
+    player_team: TeamProfile,
 ) -> tuple[float, str]:
-    """Turnover volume driven by opponent's ball pressure (forced-turnover rate), not team shot share."""
-    avg_topg = 13.5  # league average team turnovers forced per game
-    factor = opp.opp_topg / max(avg_topg, 1) if opp.opp_topg > 0 else 1.0
-    factor = max(0.88, min(factor, 1.12))
+    """
+    Player-exposure factor: how much of this player's own team's shot
+    volume runs through their hands, which is what actually exposes them
+    to a defense's ball pressure. This used to be a second copy of
+    matchup.py's opponent-forced-turnover ratio (opp_topg/13.5), which
+    double-counted the same opponent-pressure signal twice in the same
+    breakdown -- that signal now lives in matchup.py only. This factor
+    instead separates a high-usage ball-handler (more exposed to any
+    given pressure level) from a low-usage play-finisher (less exposed),
+    independent of who the opponent is.
+    """
+    avg_fga = player_team.fga if player_team.fga > 0 else 88.0
+    player_share = player.fga_pg / max(avg_fga, 1)
+    avg_share = 0.20  # a roughly average share of a team's shot volume
+    exposure_ratio = player_share / avg_share
+    factor = 1.0 + (exposure_ratio - 1.0) * 0.3
+    factor = max(0.90, min(factor, 1.10))
 
-    if factor > 1.03:
-        note = f"+ Opponent forces extra turnovers: {opp.opp_topg:.1f} TOV/game allowed"
-    elif factor < 0.97:
-        note = f"- Opponent avoids forcing turnovers: {opp.opp_topg:.1f} TOV/game allowed"
+    if factor > 1.02:
+        note = f"+ High ball-handling exposure: {player_share:.1%} of {player_team.abbreviation}'s shot volume"
+    elif factor < 0.98:
+        note = f"- Low ball-handling exposure: {player_share:.1%} of {player_team.abbreviation}'s shot volume"
     else:
-        note = f"~ Turnover volume neutral"
+        note = f"~ Exposure neutral: typical usage share"
     return factor, note
 
 
