@@ -106,6 +106,8 @@ class PropAnalyzer:
                 opp.opp_fta = tr["opp_fta"]
             if tr.get("opp_ftm"):
                 opp.opp_ftm = tr["opp_ftm"]
+            if tr.get("opp_efg_pct"):
+                opp.opp_efg_pct = tr["opp_efg_pct"]
 
     def analyze_prop(
         self,

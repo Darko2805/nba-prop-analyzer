@@ -35,6 +35,7 @@ STAT_PAGES = {
     "opp_apg":    "opponent-assists-per-game",
     "opp_fta":    "opponent-free-throws-attempted-per-game",
     "opp_ftm":    "opponent-free-throws-made-per-game",
+    "opp_efg_pct": "opponent-effective-field-goal-pct",
 }
 
 _HEADERS = {

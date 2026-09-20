@@ -91,6 +91,9 @@ class OpponentDefense:
     opp_short_mid_acc: float = 0.0
     opp_three_freq: float = 0.0
     opp_fga: float = 0.0
+    # Real scraped opponent eFG% (TeamRankings), used by rebounds' matchup
+    # factor instead of deriving an estimate from opp_fg_pct + 3PM/FGA.
+    opp_efg_pct: float = 0.0
 
 
 @dataclass

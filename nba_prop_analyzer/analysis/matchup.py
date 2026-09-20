@@ -69,8 +69,11 @@ def calculate_matchup_factor(
         # own actual OREB/DREB split (player.orpg / player.drpg), not a
         # generic assumption, since that split varies a lot by role.
         avg_efg_pct = 0.545  # ~league-average eFG%
+        # Real scraped value (TeamRankings' "Opponent Effective FG%" page)
+        # when available; falls back to a derived estimate from FG%+3PM/FGA
+        # for the rare case the scrape failed for this team.
         opp_fga = opponent_defense.opp_fga
-        opp_efg_pct = (
+        opp_efg_pct = opponent_defense.opp_efg_pct or (
             opponent_defense.opp_fg_pct + 0.5 * (opponent_defense.opp_3pm / opp_fga)
             if opp_fga > 0 else avg_efg_pct
         )
@@ -95,11 +98,12 @@ def calculate_matchup_factor(
         def_severity = off_severity = 0.0
         def_rank = def_n = off_rank = off_n = 0
         def_pct = off_pct = 0.5
-        if all_opponent_defenses and opp_fga > 0:
+        if all_opponent_defenses:
             opp_efg_population = [
-                o.opp_fg_pct + 0.5 * (o.opp_3pm / o.opp_fga)
-                for o in all_opponent_defenses.values() if o.opp_fga > 0
+                o.opp_efg_pct or (o.opp_fg_pct + 0.5 * (o.opp_3pm / o.opp_fga) if o.opp_fga > 0 else 0.0)
+                for o in all_opponent_defenses.values()
             ]
+            opp_efg_population = [v for v in opp_efg_population if v > 0]
             def_pct, def_rank, def_n = weakness_percentile(opp_efg_pct, opp_efg_population)
             # Exploitable direction here is the OPPOSITE of every other
             # stat this engine ranks (lower eFG% allowed = more misses =
