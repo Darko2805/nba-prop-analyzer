@@ -15,6 +15,11 @@ _APG_SEVERITY_EXPONENT = 1.6
 _TOPG_SEVERITY_SCALE = 0.06
 _TOPG_SEVERITY_EXPONENT = 1.6
 
+_STEAL_SEVERITY_SCALE = 0.06
+_STEAL_SEVERITY_EXPONENT = 1.6
+_DEADBALL_SEVERITY_SCALE = 0.04
+_DEADBALL_SEVERITY_EXPONENT = 1.6
+
 
 def calculate_matchup_factor(
     player: PlayerStats,
@@ -201,16 +206,52 @@ def calculate_matchup_factor(
             note = f"~ Neutral assist matchup"
 
     elif prop_type == "turnovers":
-        # Opponent's ball pressure/forced-turnover rate vs league average.
-        # Higher opponent pressure -> more expected turnovers (factor > 1).
+        # Split into two distinct defensive identities instead of one
+        # blended forced-turnover ratio: steals (active ball pressure --
+        # a scheme that actively hunts takeaways) and dead-ball turnovers
+        # (travels, bad passes out of bounds, offensive fouls -- forced
+        # less by the defense's own pressure and more by whatever the
+        # opponent's own sloppiness hands them). Both push the SAME
+        # direction for a turnovers prop (either one means more expected
+        # turnovers), unlike assists' AST-allowed/TOV-forced pair which
+        # pull opposite ways -- so each is ranked against the league
+        # independently and both bonuses add on top of the same base
+        # ratio, rather than one inverting the other.
         avg_topg = 13.5  # league average team turnovers forced per game
-        factor = opponent_defense.opp_topg / max(avg_topg, 1) if opponent_defense.opp_topg > 0 else 1.0
+        live = opponent_defense.opp_live_topg
+        dead = opponent_defense.opp_dead_topg
+        total = live + dead
+        base_factor = total / max(avg_topg, 1) if total > 0 else 1.0
+
+        live_severity = 0.0
+        live_rank = live_n = 0
+        live_pct = 0.5
+        if all_opponent_defenses and live > 0:
+            population = [o.opp_live_topg for o in all_opponent_defenses.values() if o.opp_live_topg > 0]
+            live_pct, live_rank, live_n = weakness_percentile(live, population)
+            live_severity = severity_bonus(live_pct, scale=_STEAL_SEVERITY_SCALE, exponent=_STEAL_SEVERITY_EXPONENT)
+
+        dead_severity = 0.0
+        dead_rank = dead_n = 0
+        dead_pct = 0.5
+        if all_opponent_defenses and dead > 0:
+            population = [o.opp_dead_topg for o in all_opponent_defenses.values() if o.opp_dead_topg > 0]
+            dead_pct, dead_rank, dead_n = weakness_percentile(dead, population)
+            dead_severity = severity_bonus(dead_pct, scale=_DEADBALL_SEVERITY_SCALE, exponent=_DEADBALL_SEVERITY_EXPONENT)
+
+        factor = base_factor + live_severity + dead_severity
         factor = max(0.85, min(factor, 1.15))
 
-        if factor > 1.03:
-            note = f"+ High-pressure defense: opponent forces {opponent_defense.opp_topg:.1f} TOV/game"
+        if live_n >= 10 and (live_pct <= 1 / 3 or live_pct >= 2 / 3) and abs(live_severity) > 0.01:
+            tier = "top third" if live_pct >= 2 / 3 else "bottom third"
+            note = f"{'+' if live_severity > 0 else '-'} {opponent_defense.abbreviation} forces {live:.1f} steals/game — ranks {live_rank}/{live_n} in active ball pressure ({tier})"
+        elif dead_n >= 10 and (dead_pct <= 1 / 3 or dead_pct >= 2 / 3) and abs(dead_severity) > 0.01:
+            tier = "top third" if dead_pct >= 2 / 3 else "bottom third"
+            note = f"{'+' if dead_severity > 0 else '-'} {opponent_defense.abbreviation} forces {dead:.1f} dead-ball TOV/game — ranks {dead_rank}/{dead_n} ({tier}), opponent sloppiness more than pressure"
+        elif factor > 1.03:
+            note = f"+ High-pressure defense: opponent forces {total:.1f} TOV/game"
         elif factor < 0.97:
-            note = f"- Low-pressure defense: opponent forces only {opponent_defense.opp_topg:.1f} TOV/game"
+            note = f"- Low-pressure defense: opponent forces only {total:.1f} TOV/game"
         else:
             note = f"~ Neutral turnover matchup"
     else:
