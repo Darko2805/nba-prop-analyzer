@@ -28,7 +28,7 @@ def calculate_volume_adjustment(
     elif prop_type == "rebounds":
         return _rebound_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "assists":
-        return _assist_volume(player, player_team, opponent_defense, league_avg)
+        return _assist_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "turnovers":
         return _turnover_volume(player, opponent_defense)
     return 1.0, "~ No volume adjustment"
@@ -216,21 +216,38 @@ def _turnover_volume(
     return factor, note
 
 
+_APG_VOLUME_SEVERITY_SCALE = 0.08
+_APG_VOLUME_SEVERITY_EXPONENT = 1.6
+
+
 def _assist_volume(
     player: PlayerStats,
     player_team: TeamProfile,
     opp: OpponentDefense,
     league_avg: dict,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     avg_team_apg = 25.0
     team_apg = player_team.apg if player_team.apg > 0 else avg_team_apg
     player_share = player.apg / max(team_apg, 1)
 
     opp_apg_ratio = opp.opp_apg / max(avg_team_apg, 1) if opp.opp_apg > 0 else 1.0
-    factor = 1.0 + (opp_apg_ratio - 1.0) * player_share * 2
-    factor = max(0.92, min(factor, 1.08))
+    base_factor = 1.0 + (opp_apg_ratio - 1.0) * player_share * 2
 
-    if factor > 1.02:
+    severity = 0.0
+    rank = n = 0
+    if all_opponent_defenses and opp.opp_apg > 0:
+        population = [o.opp_apg for o in all_opponent_defenses.values() if o.opp_apg > 0]
+        pct, rank, n = weakness_percentile(opp.opp_apg, population)
+        severity = severity_bonus(pct, scale=_APG_VOLUME_SEVERITY_SCALE, exponent=_APG_VOLUME_SEVERITY_EXPONENT) * player_share
+
+    factor = base_factor + severity
+    factor = max(0.88, min(factor, 1.12))
+
+    if n >= 10 and (rank / n >= 2 / 3 or rank / n <= 1 / 3) and abs(severity) > 0.01:
+        strength = "high-volume" if severity > 0 else "low-volume"
+        note = f"{'+' if severity > 0 else '-'} Opponent is a {strength} assist matchup: allows {opp.opp_apg:.1f} APG, ranks {rank}/{n} in the league"
+    elif factor > 1.02:
         note = f"+ Assist volume up: opponent allows {opp.opp_apg:.1f} APG"
     elif factor < 0.98:
         note = f"- Assist volume down: opponent limits to {opp.opp_apg:.1f} APG"

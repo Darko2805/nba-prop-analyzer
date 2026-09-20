@@ -9,6 +9,12 @@ _DRTG_SEVERITY_EXPONENT = 1.6
 _FG_MISS_SEVERITY_SCALE = 0.08
 _FG_MISS_SEVERITY_EXPONENT = 1.6
 
+_APG_SEVERITY_SCALE = 0.08
+_APG_SEVERITY_EXPONENT = 1.6
+
+_TOPG_SEVERITY_SCALE = 0.06
+_TOPG_SEVERITY_EXPONENT = 1.6
+
 
 def calculate_matchup_factor(
     player: PlayerStats,
@@ -135,12 +141,59 @@ def calculate_matchup_factor(
             note = f"~ Neutral rebounding matchup"
 
     elif prop_type == "assists":
-        opp_apg = opponent_defense.opp_apg
-        avg_apg = 25.0  # league average team assists
-        factor = opp_apg / max(avg_apg, 1)
-        factor = max(0.90, min(factor, 1.10))
+        # Two components: how many assists the opponent's defense directly
+        # allows (a fairly blunt team-level number), and how much ball
+        # pressure it applies -- opponent turnovers forced. More forced
+        # turnovers means more possessions end before a shot ever goes up,
+        # which is a prerequisite for an assist, so it pulls the OPPOSITE
+        # direction from the AST-allowed ratio: a defense can force a lot
+        # of turnovers and still be generous with assists on whatever
+        # possessions DO convert, but fewer possessions reaching a shot at
+        # all should modestly suppress the assist opportunity. Both sides
+        # ranked against the league.
+        avg_apg = 25.0  # league average team assists allowed
+        opp_apg = opponent_defense.opp_apg or avg_apg
+        apg_ratio = opp_apg / max(avg_apg, 1)
 
-        if factor > 1.02:
+        avg_topg = 13.5  # league average team turnovers forced (matches the turnovers branch below)
+        opp_topg = opponent_defense.opp_topg or avg_topg
+        pressure_ratio = avg_topg / max(opp_topg, 1)
+
+        base_factor = apg_ratio * pressure_ratio
+
+        apg_severity = 0.0
+        apg_rank = apg_n = 0
+        apg_pct = 0.5
+        if all_opponent_defenses and opp_apg > 0:
+            population = [o.opp_apg for o in all_opponent_defenses.values() if o.opp_apg > 0]
+            apg_pct, apg_rank, apg_n = weakness_percentile(opp_apg, population)
+            apg_severity = severity_bonus(apg_pct, scale=_APG_SEVERITY_SCALE, exponent=_APG_SEVERITY_EXPONENT)
+
+        topg_severity = 0.0
+        topg_rank = topg_n = 0
+        topg_pct = 0.5
+        if all_opponent_defenses and opp_topg > 0:
+            population = [o.opp_topg for o in all_opponent_defenses.values() if o.opp_topg > 0]
+            topg_pct, topg_rank, topg_n = weakness_percentile(opp_topg, population)
+            # Direction inverted relative to every other stat this engine
+            # ranks: a HIGH forced-turnover rank is BAD for assist
+            # opportunity, not good, so the sign is flipped.
+            topg_severity = -severity_bonus(topg_pct, scale=_TOPG_SEVERITY_SCALE, exponent=_TOPG_SEVERITY_EXPONENT)
+
+        factor = base_factor + apg_severity + topg_severity
+        factor = max(0.85, min(factor, 1.15))
+
+        if apg_n >= 10 and (apg_pct <= 1 / 3 or apg_pct >= 2 / 3) and abs(apg_severity) > 0.015:
+            tier = "bottom third" if apg_severity > 0 else "top third"
+            note = f"{'+' if apg_severity > 0 else '-'} {opponent_defense.abbreviation} allows {opp_apg:.1f} AST/game — ranks {apg_rank}/{apg_n} in the league ({tier})"
+        elif topg_n >= 10 and (topg_pct <= 1 / 3 or topg_pct >= 2 / 3) and abs(topg_severity) > 0.015:
+            # tier describes where the STAT itself ranks (top third = most
+            # ball pressure, ascending by raw TOV forced); the effect on
+            # assists runs the opposite way, which is what topg_severity's
+            # sign (and the wording below) captures instead.
+            tier = "top third" if topg_pct >= 2 / 3 else "bottom third"
+            note = f"{'-' if topg_severity < 0 else '+'} {opponent_defense.abbreviation} forces {opp_topg:.1f} TOV/game — ranks {topg_rank}/{topg_n} in ball pressure ({tier}), {'fewer' if topg_severity < 0 else 'more'} possessions reach a shot"
+        elif factor > 1.02:
             note = f"+ Opponent allows {opp_apg:.1f} AST/game (above avg)"
         elif factor < 0.98:
             note = f"- Opponent limits assists to {opp_apg:.1f}/game"

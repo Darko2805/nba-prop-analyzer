@@ -37,11 +37,13 @@ _POINTS_WEIGHTS = {"matchup": 0.7, "pace": 0.9, "shot_zone": 1.2, "volume": 1.1,
 _IMPORTANCE_WEIGHTS["points"] = _POINTS_WEIGHTS
 _IMPORTANCE_WEIGHTS["pra"] = _POINTS_WEIGHTS
 
-# Assists: partial pass, only teammate_efficiency is new/discussed so far —
-# opponent-turnovers-forced and a DRTG-based matchup rework are still on
-# the roadmap and will update this table when they land.
+# Assists: matchup bumped from 0.7 -> 0.9 now that it's a real dual-signal
+# calculation (opponent AST-allowed + opponent turnovers-forced ball
+# pressure, both ranked against the league) rather than a flat AST-allowed
+# ratio — same reasoning as rebounds' matchup weight going up once it
+# became mechanism-specific instead of a generic team rating.
 _IMPORTANCE_WEIGHTS["assists"] = {
-    "matchup": 0.7, "pace": 0.9, "shot_zone": 1.0, "volume": 1.1,
+    "matchup": 0.9, "pace": 0.9, "shot_zone": 1.0, "volume": 1.1,
     "free_throw": 1.0, "teammate_efficiency": 1.2, "trend": 0.7,
 }
 
