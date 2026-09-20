@@ -503,12 +503,29 @@ form.addEventListener('submit', async (e) => {
     const data = await resp.json();
 
     if (!resp.ok) {
-      throw new Error(data.error || 'Analysis failed');
+      const err = new Error(data.error || 'Analysis failed');
+      err.code = data.code;
+      throw err;
     }
 
     renderResults(data);
   } catch (err) {
     errorMsg.textContent = err.message;
+    // Only anonymous visitors have anywhere useful to go from here --
+    // signed-up users hitting their free-tier cap already have an
+    // account; there's no upgrade/billing flow built yet to send them to.
+    if (err.code === 'usage_limit_anon' && signupCard) {
+      const cta = document.createElement('button');
+      cta.type = 'button';
+      cta.className = 'link-btn';
+      cta.textContent = 'Sign up free →';
+      cta.addEventListener('click', () => {
+        signupCard.style.display = 'block';
+        signupCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      errorMsg.appendChild(document.createElement('br'));
+      errorMsg.appendChild(cta);
+    }
     errorMsg.classList.add('active');
   } finally {
     loading.classList.remove('active');

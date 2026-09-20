@@ -17,7 +17,8 @@ from nba_prop_analyzer.data.team_mapping import (
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
 from nba_prop_analyzer.data import snapshot_store, news
-from nba_prop_analyzer.web import auth
+from nba_prop_analyzer.web import auth, usage
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # A handful of recognizable stars to power the homepage's "Popular Bets"
 # quick-picks. Lines are computed from each player's real season average
@@ -62,6 +63,10 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
+# Render sits behind a reverse proxy -- without this, request.remote_addr is
+# the proxy's address for every visitor, which would make usage.py's
+# per-IP anonymous rate limit useless (everyone looks like the same IP).
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 
 @app.context_processor
@@ -112,6 +117,21 @@ def analyze():
 
     if not player_name or not opponent or prop_line <= 0:
         return jsonify({"error": "Please fill in all fields with valid values."}), 400
+
+    # Tier gating: paid is unlimited, signed-up "free" gets a 5-analysis
+    # batch every 4 days, anonymous gets 1/day by IP. Checked read-only
+    # here so a validation/analysis failure below doesn't burn someone's
+    # quota; the matching record_* call only runs after a real success.
+    user = auth.current_user()
+    client_ip = usage.get_client_ip(request)
+    if user is None:
+        allowed, limit_msg = usage.check_anon_usage(client_ip)
+        if not allowed:
+            return jsonify({"error": limit_msg, "code": "usage_limit_anon"}), 429
+    elif user.get("tier") != "paid":
+        allowed, limit_msg = usage.check_signup_usage(user["id"])
+        if not allowed:
+            return jsonify({"error": limit_msg, "code": "usage_limit_free"}), 429
 
     try:
         pred = analyzer.analyze_prop(
@@ -254,6 +274,11 @@ def analyze():
             "season_avg": round(bd["real_season_avg"], 1),
             "games_played": bd["games_played"],
         }
+
+    if user is None:
+        usage.record_anon_usage(client_ip)
+    elif user.get("tier") != "paid":
+        usage.record_signup_usage(user["id"])
 
     return jsonify(result)
 

@@ -25,7 +25,33 @@ create policy "Users can view own profile"
   using (auth.uid() = id);
 ```
 
-## 2. Point the magic-link email at our own callback
+## 2. Add usage-tracking columns/table (tier gating)
+
+Run this in the Supabase SQL Editor to support the three access tiers
+(anonymous: 1/day by IP, signed-up "free": 5 every 4 days, "paid": unlimited):
+
+```sql
+alter table public.profiles add column if not exists usage_count integer not null default 0;
+alter table public.profiles add column if not exists usage_batch_started_at timestamptz;
+
+create table if not exists public.anon_usage (
+  ip text primary key,
+  used_date date not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.anon_usage enable row level security;
+-- No public policies -- only the service_role key (server-side, in usage.py)
+-- ever reads or writes this table.
+```
+
+To manually upgrade an account to paid (no billing integration exists yet):
+
+```sql
+update public.profiles set tier = 'paid' where email = 'someone@example.com';
+```
+
+## 3. Point the magic-link email at our own callback
 
 Supabase's default magic-link email redirects through its own `/auth/v1/verify` endpoint and lands back on your site with tokens in a URL fragment — fragments never reach a server, so a server-rendered app like this one can't read them. Instead, point the email link straight at our callback with a `token_hash` query param, which Flask verifies itself.
 
@@ -35,13 +61,13 @@ In the dashboard: **Authentication → Email Templates → Magic Link**, change 
 {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email
 ```
 
-## 3. Allow-list the redirect URL
+## 4. Allow-list the redirect URL
 
 **Authentication → URL Configuration**:
 - Site URL: `https://nba-prop-analyzer-sqik.onrender.com`
 - Redirect URLs: add `https://nba-prop-analyzer-sqik.onrender.com/auth/callback` (and `http://localhost:5000/auth/callback` if testing locally)
 
-## 4. Environment variables (Render → Environment tab)
+## 5. Environment variables (Render → Environment tab)
 
 From **Settings → API**:
 - `SUPABASE_URL` — the Project URL
