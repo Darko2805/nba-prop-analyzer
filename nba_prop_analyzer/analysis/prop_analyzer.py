@@ -11,6 +11,7 @@ from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
 from .volume import calculate_volume_adjustment
 from .free_throw import calculate_free_throw_factor
+from .teammate_efficiency import calculate_teammate_efficiency_factor
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
 from .probability import estimate_probability, classify_confidence
 
@@ -183,7 +184,7 @@ class PropAnalyzer:
         if prop_type in COMBO_PROP_TYPES:
             baseline, matchup_factor, matchup_note, pace_factor, pace_note, \
                 zone_factor, zone_notes, zones, volume_factor, volume_note, \
-                ft_factor, ft_note, trend_factor, trend_note = \
+                ft_factor, ft_note, teammate_factor, teammate_note, trend_factor, trend_note = \
                 self._run_combo_factors(
                     player, player_team, opponent_team, opponent_defense, prop_type, game_logs
                 )
@@ -204,12 +205,18 @@ class PropAnalyzer:
             ft_factor, ft_note = calculate_free_throw_factor(
                 player, opponent_defense, prop_type, self.opponent_defenses
             )
+            teammate_factor, teammate_note = calculate_teammate_efficiency_factor(
+                player_team, prop_type, self.team_profiles
+            )
             trend_factor, trend_note = estimate_trend_factor(
                 player, prop_type, game_logs=game_logs
             )
 
         # Compute adjusted prediction
-        adjusted = baseline * matchup_factor * pace_factor * zone_factor * volume_factor * ft_factor * trend_factor
+        adjusted = (
+            baseline * matchup_factor * pace_factor * zone_factor * volume_factor
+            * ft_factor * teammate_factor * trend_factor
+        )
 
         # Probability (with real variance if available)
         over_prob, under_prob = estimate_probability(
@@ -218,9 +225,10 @@ class PropAnalyzer:
         confidence = classify_confidence(over_prob)
 
         # Collect factors: zone_notes is a list (multiple step lines)
-        key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, ft_note, trend_note]
+        key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, ft_note, teammate_note, trend_note]
 
         after_volume = baseline * matchup_factor * pace_factor * zone_factor * volume_factor
+        after_ft = after_volume * ft_factor
         breakdown = {
             "baseline": baseline,
             "matchup": matchup_factor,
@@ -228,12 +236,14 @@ class PropAnalyzer:
             "shot_zone": zone_factor,
             "volume": volume_factor,
             "free_throw": ft_factor,
+            "teammate_efficiency": teammate_factor,
             "trend": trend_factor,
             "after_matchup": baseline * matchup_factor,
             "after_pace": baseline * matchup_factor * pace_factor,
             "after_zone": baseline * matchup_factor * pace_factor * zone_factor,
             "after_volume": after_volume,
-            "after_ft": after_volume * ft_factor,
+            "after_ft": after_ft,
+            "after_teammate": after_ft * teammate_factor,
             "final": adjusted,
             # Each factor's own descriptive note, so the UI can show the real
             # reasoning behind whichever factor ends up headlining the
@@ -243,6 +253,7 @@ class PropAnalyzer:
             "shot_zone_note": zone_notes[0] if zone_notes else "",
             "volume_note": volume_note,
             "free_throw_note": ft_note,
+            "teammate_efficiency_note": teammate_note,
             "trend_note": trend_note,
         }
         if zones:
@@ -331,8 +342,8 @@ class PropAnalyzer:
             player_team, opponent_team, self.league_avg.get("pace", 100.0), self.team_profiles
         )
 
-        matchup_factor = zone_factor = volume_factor = ft_factor = trend_factor = 0.0
-        matchup_parts, volume_parts, ft_parts, trend_parts, zone_notes = [], [], [], [], []
+        matchup_factor = zone_factor = volume_factor = ft_factor = teammate_factor = trend_factor = 0.0
+        matchup_parts, volume_parts, ft_parts, teammate_parts, trend_parts, zone_notes = [], [], [], [], [], []
         zones = None
         not_applicable = "not applicable"
 
@@ -351,12 +362,16 @@ class PropAnalyzer:
             f, f_note = calculate_free_throw_factor(
                 player, opponent_defense, comp, self.opponent_defenses
             )
+            te, te_note = calculate_teammate_efficiency_factor(
+                player_team, comp, self.team_profiles
+            )
             t, t_note = estimate_trend_factor(player, comp, game_logs=game_logs)
 
             matchup_factor += weight * m
             zone_factor += weight * z
             volume_factor += weight * v
             ft_factor += weight * f
+            teammate_factor += weight * te
             trend_factor += weight * t
 
             matchup_parts.append(f"[{label}] {m_note}")
@@ -364,6 +379,8 @@ class PropAnalyzer:
             trend_parts.append(f"[{label}] {t_note}")
             if not_applicable not in f_note:
                 ft_parts.append(f"[{label}] {f_note}")
+            if not_applicable not in te_note:
+                teammate_parts.append(f"[{label}] {te_note}")
             zone_notes += [f"[{label}] {n}" for n in z_notes if not_applicable not in n]
             zones = zones or zn
 
@@ -371,11 +388,12 @@ class PropAnalyzer:
         volume_note = " | ".join(volume_parts)
         trend_note = " | ".join(trend_parts)
         ft_note = " | ".join(ft_parts) if ft_parts else "~ Free-throw rate not applicable for this combo"
+        teammate_note = " | ".join(teammate_parts) if teammate_parts else "~ Teammate shooting efficiency not applicable for this combo"
         if not zone_notes:
             zone_notes = ["~ Zone analysis not applicable for this combo"]
 
         return (
             baseline, matchup_factor, matchup_note, pace_factor, pace_note,
             zone_factor, zone_notes, zones, volume_factor, volume_note,
-            ft_factor, ft_note, trend_factor, trend_note,
+            ft_factor, ft_note, teammate_factor, teammate_note, trend_factor, trend_note,
         )

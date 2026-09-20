@@ -813,7 +813,8 @@ function factorDelta(bd, factor) {
     case 'shot_zone': return bd.after_zone - bd.after_pace;
     case 'volume': return bd.after_volume - bd.after_zone;
     case 'free_throw': return bd.after_ft - bd.after_volume;
-    case 'trend': return bd.final - bd.after_ft;
+    case 'teammate_efficiency': return bd.after_teammate - bd.after_ft;
+    case 'trend': return bd.final - bd.after_teammate;
     default: return 0;
   }
 }
@@ -839,6 +840,7 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
     { key: 'shot_zone', label: 'SHOT ZONE', text: `x${bd.shot_zone}` },
     { key: 'volume',    label: 'VOLUME',    text: `x${bd.volume}` },
     { key: 'free_throw', label: 'FT RATE',  text: `x${bd.free_throw}` },
+    { key: 'teammate_efficiency', label: 'TEAMMATE EFF', text: `x${bd.teammate_efficiency}` },
     { key: 'trend',     label: 'TREND',     text: `x${bd.trend}` },
     { key: null,        label: 'FINAL',     text: `${bd.final}`, final: true },
   ];

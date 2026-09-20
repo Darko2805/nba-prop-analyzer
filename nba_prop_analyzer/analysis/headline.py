@@ -37,9 +37,20 @@ _POINTS_WEIGHTS = {"matchup": 0.7, "pace": 0.9, "shot_zone": 1.2, "volume": 1.1,
 _IMPORTANCE_WEIGHTS["points"] = _POINTS_WEIGHTS
 _IMPORTANCE_WEIGHTS["pra"] = _POINTS_WEIGHTS
 
+# Assists: partial pass, only teammate_efficiency is new/discussed so far —
+# opponent-turnovers-forced and a DRTG-based matchup rework are still on
+# the roadmap and will update this table when they land.
+_IMPORTANCE_WEIGHTS["assists"] = {
+    "matchup": 0.7, "pace": 0.9, "shot_zone": 1.0, "volume": 1.1,
+    "free_throw": 1.0, "teammate_efficiency": 1.2, "trend": 0.7,
+}
+
 # Equal weighting (behaves like plain "furthest from 1.0") for any prop
 # type not yet in _IMPORTANCE_WEIGHTS above.
-_DEFAULT_WEIGHTS = {"matchup": 1.0, "pace": 1.0, "shot_zone": 1.0, "volume": 1.0, "free_throw": 1.0, "trend": 1.0}
+_DEFAULT_WEIGHTS = {
+    "matchup": 1.0, "pace": 1.0, "shot_zone": 1.0, "volume": 1.0,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "trend": 1.0,
+}
 
 _FACTOR_LABELS = {
     "matchup": "Matchup",
@@ -47,6 +58,7 @@ _FACTOR_LABELS = {
     "shot_zone": "Shot Zone",
     "volume": "Volume",
     "free_throw": "Free Throws",
+    "teammate_efficiency": "Teammate Efficiency",
     "trend": "Trend",
 }
 
