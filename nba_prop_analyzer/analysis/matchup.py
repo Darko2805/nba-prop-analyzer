@@ -6,6 +6,9 @@ from .severity import weakness_percentile, severity_bonus
 _DRTG_SEVERITY_SCALE = 0.09
 _DRTG_SEVERITY_EXPONENT = 1.6
 
+_FG_MISS_SEVERITY_SCALE = 0.08
+_FG_MISS_SEVERITY_EXPONENT = 1.6
+
 
 def calculate_matchup_factor(
     player: PlayerStats,
@@ -14,6 +17,7 @@ def calculate_matchup_factor(
     league_avg: dict,
     prop_type: str,
     all_opponent_defenses: dict | None = None,
+    all_team_profiles: dict | None = None,
 ) -> tuple[float, str]:
     """
     Returns (multiplicative_factor, explanation_string).
@@ -53,19 +57,76 @@ def calculate_matchup_factor(
             note = f"~ Neutral matchup: ORTG/DRTG close to league average"
 
     elif prop_type == "rebounds":
-        # Rebounding matchup: use team rebound rates
-        opp_rpg = opponent_defense.opp_rpg
-        avg_rpg = league_avg.get("ppg", 114.0) * 0.39  # rough boards per game estimate
-        if avg_rpg > 0:
-            factor = opp_rpg / avg_rpg
-        else:
-            factor = 1.0
-        factor = max(0.90, min(factor, 1.10))
+        # Rebounds only exist because shots get missed, so this is built
+        # around the two most mechanically direct drivers of miss rate --
+        # more so than for points or assists, per Darko: opponent eFG%
+        # (drives DEFENSIVE-rebound opportunity) and the player's own
+        # team's shooting efficiency (drives OFFENSIVE-rebound opportunity,
+        # since a team missing its own shots creates its own OREB chances).
+        # DRTG was doing this job by proxy before, but it's diluted by
+        # turnovers forced and free-throw efficiency, neither of which
+        # produces a rebound. The two sides are blended by THIS player's
+        # own actual OREB/DREB split (player.orpg / player.drpg), not a
+        # generic assumption, since that split varies a lot by role.
+        avg_efg_pct = 0.545  # ~league-average eFG%
+        opp_fga = opponent_defense.opp_fga
+        opp_efg_pct = (
+            opponent_defense.opp_fg_pct + 0.5 * (opponent_defense.opp_3pm / opp_fga)
+            if opp_fga > 0 else avg_efg_pct
+        )
+        # Lower opponent eFG% allowed -> more misses -> more DEFENSIVE rebounds
+        def_miss_factor = avg_efg_pct / max(opp_efg_pct, 0.01)
 
-        if factor > 1.02:
-            note = f"+ Opponent allows more rebounds than average"
+        # True Shooting % is the closest already-available proxy for the
+        # team's own eFG% (models.py has no team-level FGM/3PM to compute
+        # a literal eFG%) -- it also folds in FT efficiency, which the
+        # opponent side deliberately avoids, so this side is a looser fit.
+        avg_ts = 0.565
+        team_ts = player_team.ts_pct or avg_ts
+        # Lower own-team shooting -> more of the team's own misses -> more OFFENSIVE rebounds
+        off_miss_factor = avg_ts / max(team_ts, 0.01)
+
+        total_reb = max(player.rpg, 0.1)
+        dreb_share = player.drpg / total_reb if player.drpg > 0 else 0.7
+        oreb_share = player.orpg / total_reb if player.orpg > 0 else 0.3
+
+        base_factor = def_miss_factor * dreb_share + off_miss_factor * oreb_share
+
+        def_severity = off_severity = 0.0
+        def_rank = def_n = off_rank = off_n = 0
+        def_pct = off_pct = 0.5
+        if all_opponent_defenses and opp_fga > 0:
+            opp_efg_population = [
+                o.opp_fg_pct + 0.5 * (o.opp_3pm / o.opp_fga)
+                for o in all_opponent_defenses.values() if o.opp_fga > 0
+            ]
+            def_pct, def_rank, def_n = weakness_percentile(opp_efg_pct, opp_efg_population)
+            # Exploitable direction here is the OPPOSITE of every other
+            # stat this engine ranks (lower eFG% allowed = more misses =
+            # more boards), so the percentile is inverted before scoring.
+            def_severity = severity_bonus(1.0 - def_pct, scale=_FG_MISS_SEVERITY_SCALE, exponent=_FG_MISS_SEVERITY_EXPONENT)
+        if all_team_profiles:
+            ts_population = [t.ts_pct for t in all_team_profiles.values() if t.ts_pct > 0]
+            off_pct, off_rank, off_n = weakness_percentile(team_ts, ts_population)
+            off_severity = severity_bonus(1.0 - off_pct, scale=_FG_MISS_SEVERITY_SCALE, exponent=_FG_MISS_SEVERITY_EXPONENT)
+
+        factor = base_factor + dreb_share * def_severity + oreb_share * off_severity
+        factor = max(0.85, min(factor, 1.15))
+
+        if def_n >= 10 and (def_pct <= 1 / 3 or def_pct >= 2 / 3) and abs(def_severity) > 0.015:
+            if def_severity > 0:
+                note = f"+ {opponent_defense.abbreviation} defense forces misses: {opp_efg_pct:.1%} eFG allowed (ranks {def_rank}/{def_n} stingiest) — extra defensive-rebound chances"
+            else:
+                note = f"- {opponent_defense.abbreviation} defense allows efficient shooting: {opp_efg_pct:.1%} eFG allowed (ranks {def_rank}/{def_n} stingiest) — fewer defensive-rebound chances"
+        elif off_n >= 10 and (off_pct <= 1 / 3 or off_pct >= 2 / 3) and abs(off_severity) > 0.015:
+            if off_severity > 0:
+                note = f"+ {player_team.abbreviation} shoots poorly ({team_ts:.1%} TS, ranks {off_rank}/{off_n}) — extra offensive-rebound chances for their own misses"
+            else:
+                note = f"- {player_team.abbreviation} shoots efficiently ({team_ts:.1%} TS, ranks {off_rank}/{off_n}) — fewer offensive-rebound chances"
+        elif factor > 1.02:
+            note = f"+ Shooting-efficiency matchup favors extra rebound chances"
         elif factor < 0.98:
-            note = f"- Opponent limits rebounding opportunities"
+            note = f"- Shooting-efficiency matchup limits rebound chances"
         else:
             note = f"~ Neutral rebounding matchup"
 

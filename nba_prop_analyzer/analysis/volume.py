@@ -26,7 +26,7 @@ def calculate_volume_adjustment(
     elif prop_type in ("3pm", "3pa"):
         return _three_point_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "rebounds":
-        return _rebound_volume(player, player_team, opponent_defense, league_avg)
+        return _rebound_volume(player, player_team, opponent_defense, league_avg, all_opponent_defenses)
     elif prop_type == "assists":
         return _assist_volume(player, player_team, opponent_defense, league_avg)
     elif prop_type == "turnovers":
@@ -117,21 +117,38 @@ def _three_point_volume(
     return factor, note
 
 
+_RPG_SEVERITY_SCALE = 0.09
+_RPG_SEVERITY_EXPONENT = 1.6
+
+
 def _rebound_volume(
     player: PlayerStats,
     player_team: TeamProfile,
     opp: OpponentDefense,
     league_avg: dict,
+    all_opponent_defenses: dict | None = None,
 ) -> tuple[float, str]:
     avg_team_rpg = 44.0
     team_rpg = player_team.rpg if player_team.rpg > 0 else avg_team_rpg
     player_share = player.rpg / max(team_rpg, 1)
 
     opp_rpg_ratio = opp.opp_rpg / max(avg_team_rpg, 1) if opp.opp_rpg > 0 else 1.0
-    factor = 1.0 + (opp_rpg_ratio - 1.0) * player_share * 2
-    factor = max(0.92, min(factor, 1.08))
+    base_factor = 1.0 + (opp_rpg_ratio - 1.0) * player_share * 2
 
-    if factor > 1.02:
+    severity = 0.0
+    rank = n = 0
+    if all_opponent_defenses and opp.opp_rpg > 0:
+        population = [o.opp_rpg for o in all_opponent_defenses.values() if o.opp_rpg > 0]
+        pct, rank, n = weakness_percentile(opp.opp_rpg, population)
+        severity = severity_bonus(pct, scale=_RPG_SEVERITY_SCALE, exponent=_RPG_SEVERITY_EXPONENT) * player_share
+
+    factor = base_factor + severity
+    factor = max(0.88, min(factor, 1.12))
+
+    if n >= 10 and (rank / n >= 2 / 3 or rank / n <= 1 / 3) and abs(severity) > 0.01:
+        strength = "gives up a lot of boards" if severity > 0 else "boxes out well"
+        note = f"{'+' if severity > 0 else '-'} Opponent {strength}: allows {opp.opp_rpg:.1f} RPG, ranks {rank}/{n} in the league"
+    elif factor > 1.02:
         note = f"+ Rebound volume up: opponent allows {opp.opp_rpg:.1f} RPG"
     elif factor < 0.98:
         note = f"- Rebound volume down: opponent limits to {opp.opp_rpg:.1f} RPG"

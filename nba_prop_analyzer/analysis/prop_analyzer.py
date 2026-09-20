@@ -191,7 +191,8 @@ class PropAnalyzer:
         else:
             baseline = self._get_baseline(player, prop_type)
             matchup_factor, matchup_note = calculate_matchup_factor(
-                player, player_team, opponent_defense, self.league_avg, prop_type, self.opponent_defenses
+                player, player_team, opponent_defense, self.league_avg, prop_type,
+                self.opponent_defenses, self.team_profiles,
             )
             pace_factor, pace_note = calculate_pace_factor(
                 player_team, opponent_team, self.league_avg.get("pace", 100.0), self.team_profiles
@@ -351,7 +352,8 @@ class PropAnalyzer:
             label = _stat_label(comp)
 
             m, m_note = calculate_matchup_factor(
-                player, player_team, opponent_defense, self.league_avg, comp, self.opponent_defenses
+                player, player_team, opponent_defense, self.league_avg, comp,
+                self.opponent_defenses, self.team_profiles,
             )
             z, z_notes, zn = calculate_shot_zone_exploitation(
                 player, player_team, opponent_defense, comp, self.opponent_defenses

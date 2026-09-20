@@ -45,6 +45,17 @@ _IMPORTANCE_WEIGHTS["assists"] = {
     "free_throw": 1.0, "teammate_efficiency": 1.2, "trend": 0.7,
 }
 
+# Rebounds: pace is weighted higher here (1.1) than for any other prop —
+# rebounds only exist because shots get missed, so total shot volume
+# (which pace sets) is a more mechanically direct driver here than it is
+# for points or assists. Matchup is also weighted highest of any prop's
+# matchup factor, since it's now built specifically around miss-rate
+# (opponent/own-team eFG%) rather than a generic team rating.
+_IMPORTANCE_WEIGHTS["rebounds"] = {
+    "matchup": 1.2, "pace": 1.1, "shot_zone": 1.0, "volume": 1.1,
+    "free_throw": 1.0, "teammate_efficiency": 1.0, "trend": 0.7,
+}
+
 # Equal weighting (behaves like plain "furthest from 1.0") for any prop
 # type not yet in _IMPORTANCE_WEIGHTS above.
 _DEFAULT_WEIGHTS = {
