@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 
 from .databallr_client import find_player
 from .team_mapping import normalize_team
+from .bbref_scraper import get_stat_from_games
+from . import snapshot_store
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -115,3 +117,57 @@ def snapshot_todays_predictions(analyzer, games_today: list) -> int:
         timeout=_REQUEST_TIMEOUT,
     )
     return len(rows) if resp.status_code < 400 else 0
+
+
+def record_outcomes() -> int:
+    """
+    For every tracked prediction still missing an actual result, looks
+    up that player's real game-log entry for the exact date the
+    prediction was made and fills in what actually happened. Never
+    re-runs the model -- this only ever reads a game that's already
+    been played, so it can't turn into a backtest. A player with no
+    matching date in the snapshot yet (game not played, or the daily
+    snapshot refresh hasn't caught up) is left alone and picked up on
+    a later run. Returns how many rows were scored.
+    """
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return 0
+
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/tracked_predictions",
+        headers=_headers(),
+        params={"actual_value": "is.null", "select": "date,player,prop_type,line"},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        return 0
+    pending = resp.json()
+
+    scored = 0
+    for row in pending:
+        games = snapshot_store.load_game_logs(row["player"])
+        if not games:
+            continue
+        match = next((g for g in games if g.date == row["date"]), None)
+        if match is None:
+            continue
+
+        actual = get_stat_from_games([match], row["prop_type"])[0]
+        line = row["line"]
+        hit = "OVER" if actual > line else ("UNDER" if actual < line else "PUSH")
+
+        patch_resp = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/tracked_predictions",
+            headers=_headers(),
+            params={
+                "date": f"eq.{row['date']}",
+                "player": f"eq.{row['player']}",
+                "prop_type": f"eq.{row['prop_type']}",
+            },
+            json={"actual_value": actual, "hit": hit},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if patch_resp.status_code < 400:
+            scored += 1
+
+    return scored

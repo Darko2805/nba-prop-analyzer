@@ -126,6 +126,18 @@ def snapshot_track_record():
     return jsonify({"recorded": count})
 
 
+@app.route("/internal/score-track-record")
+def score_track_record():
+    # Same manual-trigger pattern as snapshot-track-record, same secret.
+    # Meant to run the day after a snapshot, once the daily game-log
+    # refresh has picked up the completed games.
+    expected = os.environ.get("TRACK_RECORD_KEY")
+    if not expected or request.args.get("key") != expected:
+        return jsonify({"error": "Not found"}), 404
+    count = track_record.record_outcomes()
+    return jsonify({"scored": count})
+
+
 @app.route("/api/news")
 def api_news():
     try:
