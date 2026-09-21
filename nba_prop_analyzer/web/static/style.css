@@ -959,6 +959,8 @@ a.blog-list-item p:last-child {
 
 .headline-text { font-size: 1rem; font-weight: 600; color: var(--text); line-height: 1.4; }
 
+.headline-annotation { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; font-weight: 400; }
+
 .headline-impact {
   flex-shrink: 0;
   text-align: center;
