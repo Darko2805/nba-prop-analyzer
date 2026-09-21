@@ -61,6 +61,37 @@ In the dashboard: **Authentication → Email Templates → Magic Link**, change 
 {{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email
 ```
 
+## 3b. Add the track-record table (paid-tier historical predictions)
+
+```sql
+create table if not exists public.tracked_predictions (
+  date date not null,
+  player text not null,
+  opponent text,
+  prop_type text not null,
+  line numeric not null,
+  predicted_value numeric not null,
+  lean text not null,
+  actual_value numeric,
+  hit text,
+  created_at timestamptz not null default now(),
+  primary key (date, player, prop_type)
+);
+
+alter table public.tracked_predictions enable row level security;
+grant select, insert, update on public.tracked_predictions to service_role;
+```
+
+(That `grant` line is required -- a table created via this SQL Editor does
+NOT automatically get service_role privileges the way the dashboard's
+Table Editor does. See the `anon_usage` incident in memory if this ever
+silently stops writing again.)
+
+Also set a `TRACK_RECORD_KEY` environment variable on Render (any random
+string) -- it's the shared secret required to trigger a snapshot via
+`/internal/snapshot-track-record?key=...` until this is wired into the
+existing daily scheduled task.
+
 ## 4. Allow-list the redirect URL
 
 **Authentication → URL Configuration**:

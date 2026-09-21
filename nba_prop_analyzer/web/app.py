@@ -16,7 +16,7 @@ from nba_prop_analyzer.data.team_mapping import (
 )
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
-from nba_prop_analyzer.data import snapshot_store, news, blog
+from nba_prop_analyzer.data import snapshot_store, news, blog, track_record
 from nba_prop_analyzer.web import auth, usage
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -109,6 +109,21 @@ def blog_post(slug):
     if post is None:
         return render_template("blog_list.html", posts=blog.list_posts(), not_found=True), 404
     return render_template("blog_post.html", post=post)
+
+
+@app.route("/internal/snapshot-track-record")
+def snapshot_track_record():
+    # Manual trigger until this is wired into the existing daily
+    # scheduled task -- fails closed (unlike usage.py's fail-open
+    # pattern) since this is an admin action, not a real-user request.
+    expected = os.environ.get("TRACK_RECORD_KEY")
+    if not expected or request.args.get("key") != expected:
+        return jsonify({"error": "Not found"}), 404
+    if not analyzer.is_ready():
+        return jsonify({"error": "Data not ready"}), 503
+    games_today = snapshot_store.load_games_today()
+    count = track_record.snapshot_todays_predictions(analyzer, games_today)
+    return jsonify({"recorded": count})
 
 
 @app.route("/api/news")
