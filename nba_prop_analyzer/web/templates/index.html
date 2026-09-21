@@ -69,7 +69,7 @@
   </div>
   {% endif %}
 
-  <p class="lede">Enter a player and a line. See the matchup before you bet it.</p>
+  <p class="lede">Enter a player and a line. We break down the matchup — the bet is still yours to make.</p>
 
   <div class="dossier">
   <div class="dossier-main">
@@ -563,7 +563,7 @@ function renderResults(d) {
 
   // Lean badge
   const leanBadge = document.getElementById('leanBadge');
-  leanBadge.textContent = d.lean === 'NO LEAN' ? 'NO STRONG LEAN' : `LEAN ${d.lean} ${d.prop_line}`;
+  leanBadge.textContent = d.lean === 'NO LEAN' ? 'NO STRONG EDGE EITHER WAY' : `DATA FAVORS ${d.lean} ${d.prop_line}`;
   leanBadge.className = 'lean-badge ' + (d.lean === 'OVER' ? 'over' : d.lean === 'UNDER' ? 'under' : 'neutral');
 
   // Confidence
