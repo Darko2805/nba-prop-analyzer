@@ -63,6 +63,8 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
+print(f"[boot] TRACK_RECORD_KEY present: {bool(os.environ.get('TRACK_RECORD_KEY'))}")
+print(f"[boot] env keys containing TRACK: {[k for k in os.environ if 'TRACK' in k.upper()]}")
 # Render sits behind a reverse proxy -- without this, request.remote_addr is
 # the proxy's address for every visitor, which would make usage.py's
 # per-IP anonymous rate limit useless (everyone looks like the same IP).
