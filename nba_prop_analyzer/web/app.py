@@ -117,8 +117,14 @@ def snapshot_track_record():
     # scheduled task -- fails closed (unlike usage.py's fail-open
     # pattern) since this is an admin action, not a real-user request.
     expected = os.environ.get("TRACK_RECORD_KEY")
-    if not expected or request.args.get("key") != expected:
-        return jsonify({"error": "Not found"}), 404
+    given = request.args.get("key")
+    if not expected or given != expected:
+        return jsonify({
+            "error": "Not found",
+            "debug_expected_len": len(expected) if expected else 0,
+            "debug_given_len": len(given) if given else 0,
+            "debug_match": given == expected,
+        }), 404
     if not analyzer.is_ready():
         return jsonify({"error": "Data not ready"}), 503
     games_today = snapshot_store.load_games_today()
