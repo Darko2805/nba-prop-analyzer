@@ -66,6 +66,7 @@ def _today_utc() -> str:
 def check_anon_usage(ip: str) -> tuple[bool, str | None]:
     """Read-only check: has this IP already used today's single free analysis?"""
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        print("[usage] check_anon_usage: Supabase not configured, failing open")
         return True, None  # auth/usage tracking not configured -- fail open
 
     resp = requests.get(
@@ -75,9 +76,11 @@ def check_anon_usage(ip: str) -> tuple[bool, str | None]:
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:
+        print(f"[usage] check_anon_usage GET failed {resp.status_code}: {resp.text}")
         return True, None  # fail open rather than block real users over a DB hiccup
 
     rows = resp.json()
+    print(f"[usage] check_anon_usage ip={ip} today={_today_utc()} rows={rows}")
     if rows and rows[0].get("used_date") == _today_utc():
         return False, (
             "You've used today's free analysis. Sign up free for 5 analyses "
@@ -89,13 +92,15 @@ def check_anon_usage(ip: str) -> tuple[bool, str | None]:
 def record_anon_usage(ip: str) -> None:
     """Called only after a successful analysis -- a failed/invalid request shouldn't burn the day's use."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        print("[usage] record_anon_usage: Supabase not configured, skipping")
         return
-    requests.post(
+    resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/anon_usage",
         headers={**_headers(), "Prefer": "resolution=merge-duplicates"},
         json={"ip": ip, "used_date": _today_utc(), "updated_at": datetime.now(timezone.utc).isoformat()},
         timeout=_REQUEST_TIMEOUT,
     )
+    print(f"[usage] record_anon_usage ip={ip} status={resp.status_code} body={resp.text}")
 
 
 def _fetch_usage_fields(user_id: str) -> dict:
