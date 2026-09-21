@@ -119,6 +119,32 @@
     </form>
   </div>
 
+  <!-- Biggest Edges Tonight: the engine's own output, not hand-written copy --
+       same headline-factor selection real analyses use, run against tonight's
+       tracked players and ranked by how extreme the result actually is. -->
+  {% if biggest_edges %}
+  <div class="showcase">
+    <h3>Biggest edges tonight</h3>
+    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.</p>
+    <div class="edge-list">
+      {% for edge in biggest_edges %}
+      <button type="button" class="edge-card" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
+        {% if edge.headshot %}
+        <img src="{{ edge.headshot }}" alt="" class="edge-headshot" onerror="this.style.display='none'">
+        {% else %}
+        <span class="edge-headshot edge-headshot-empty"></span>
+        {% endif %}
+        <div class="edge-body">
+          <div class="edge-player">{{ edge.player }} <span class="edge-vs">{{ edge.prop_unit }} vs {{ edge.opponent }}</span></div>
+          <div class="edge-note">{{ edge.headline_note }}</div>
+        </div>
+        <div class="edge-value {{ edge.headline_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Popular Bets: sits in the main column right under the form, sized to its
        width — not a full-width band — so it never pushes the sidebar down. -->
   {% if popular_bets %}
@@ -358,7 +384,10 @@
           {% for g in games_today %}
           <div class="game-row">
             <span class="game-time">{{ g.start_time }}</span>
-            <span class="game-matchup">{{ g.away_team }} @ {{ g.home_team }}</span>
+            <span class="game-matchup">
+              {{ g.away_team }}{% if g.away_fatigue %} <span class="fatigue-tag" title="Schedule fatigue">{{ g.away_fatigue }}</span>{% endif %}
+              @ {{ g.home_team }}{% if g.home_fatigue %} <span class="fatigue-tag" title="Schedule fatigue">{{ g.home_fatigue }}</span>{% endif %}
+            </span>
             <span class="game-arena">{{ g.arena }}</span>
           </div>
           {% endfor %}
@@ -897,8 +926,8 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
     `${signals.agree} of ${signals.directional_total} directional signals agree` + (signals.neutral ? ` · ${signals.neutral} neutral` : '');
 }
 
-// Popular Bets quick-picks: fill the form and run the same analysis flow.
-document.querySelectorAll('.popular-card').forEach((card) => {
+// Popular Bets quick-picks + Biggest Edges cards: fill the form and run the same analysis flow.
+document.querySelectorAll('.popular-card, .edge-card').forEach((card) => {
   card.addEventListener('click', () => {
     document.getElementById('player').value = card.dataset.player;
     document.getElementById('opponent').value = card.dataset.opponent || '';

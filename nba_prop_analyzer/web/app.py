@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 import os
 
@@ -12,7 +14,7 @@ from nba_prop_analyzer.analysis.headline import select_headline_factor, summariz
 from nba_prop_analyzer.config import PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
-    find_espn_player_id, espn_headshot_url,
+    find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
 )
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
@@ -61,6 +63,122 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
         })
     return picks
 
+
+_EDGE_PROP_BASELINE = {"points": "ppg", "rebounds": "rpg", "assists": "apg"}
+_EDGE_PROP_UNIT = {"points": "PTS", "rebounds": "REB", "assists": "AST"}
+
+
+def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 3) -> list:
+    """
+    The engine's own output, surfaced on the homepage instead of only
+    after you run an analysis yourself: for tonight's tracked players,
+    checks points/rebounds/assists and ranks whichever headline factors
+    came out most extreme across ALL of them -- literally what Component
+    Breakdown would show if you ran that exact matchup, not a separate
+    "homepage" claim. Reuses track_record.py's player list so there's one
+    curated roster to keep in sync, not two. Capped at one slot per
+    player so the same standout name can't fill the whole list just
+    because it's extreme in more than one stat.
+    """
+    todays_opponent_by_team = {}
+    for g in games_today:
+        away_abbr = normalize_team(g["away_team"])
+        home_abbr = normalize_team(g["home_team"])
+        if away_abbr and home_abbr:
+            todays_opponent_by_team[away_abbr] = home_abbr
+            todays_opponent_by_team[home_abbr] = away_abbr
+
+    candidates = []
+    for name in track_record.TRACKED_PLAYERS:
+        player = find_player(name, analyzer.players)
+        if not player:
+            continue
+        opponent = todays_opponent_by_team.get(normalize_team(player.team_abbr))
+        if not opponent:
+            continue
+
+        for prop_type, baseline_attr in _EDGE_PROP_BASELINE.items():
+            baseline = getattr(player, baseline_attr, 0)
+            if baseline <= 0:
+                continue
+            line = _round_to_half(baseline)
+            try:
+                pred = analyzer.analyze_prop(
+                    player_name=player.name,
+                    opponent_abbr=opponent,
+                    prop_type=prop_type,
+                    prop_line=line,
+                    trend_override=1.0,
+                )
+            except Exception:
+                continue
+
+            bd = pred.breakdown
+            factor_values = {
+                k: bd[k] for k in
+                ["matchup", "pace", "shot_zone", "volume", "free_throw", "teammate_efficiency", "rest_fatigue", "trend"]
+            }
+            headline = select_headline_factor(factor_values, prop_type)
+            note = bd.get(f"{headline['factor']}_note", "").lstrip("+-~ ").strip()
+            if not note or headline["deviation"] < 0.01:
+                continue  # nothing notable enough to feature
+
+            candidates.append({
+                "player": player.name,
+                "team": player.team_abbr,
+                "opponent": opponent,
+                "prop_type": prop_type,
+                "prop_unit": _EDGE_PROP_UNIT[prop_type],
+                "line": line,
+                "predicted_value": round(pred.predicted_value, 1),
+                "headline_note": note,
+                "headline_direction": headline["direction"],
+                "score": headline["score"],
+                "espn_id": find_espn_player_id(player.name, player.team_abbr),
+            })
+
+    candidates.sort(key=lambda c: c["score"], reverse=True)
+
+    seen_players = set()
+    top = []
+    for c in candidates:
+        if c["player"] in seen_players:
+            continue
+        seen_players.add(c["player"])
+        c["headshot"] = espn_headshot_url(c.pop("espn_id")) if c["espn_id"] else None
+        top.append(c)
+        if len(top) >= limit:
+            break
+
+    return top
+
+
+def annotate_schedule_fatigue(games_today: list) -> list:
+    """Tags any team in tonight's slate playing on a back-to-back or a 3rd game in 4 nights."""
+    try:
+        b2b_teams = fetch_back_to_back_teams()
+        tin4_teams = fetch_three_in_four_teams()
+    except Exception:
+        b2b_teams, tin4_teams = set(), set()
+
+    def _tag(abbr: str) -> str | None:
+        if abbr in b2b_teams:
+            return "B2B"
+        if abbr in tin4_teams:
+            return "3RD/4"
+        return None
+
+    annotated = []
+    for g in games_today:
+        away_abbr = normalize_team(g["away_team"])
+        home_abbr = normalize_team(g["home_team"])
+        annotated.append({
+            **g,
+            "away_fatigue": _tag(away_abbr),
+            "home_fatigue": _tag(home_abbr),
+        })
+    return annotated
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
 # Render sits behind a reverse proxy -- without this, request.remote_addr is
@@ -84,12 +202,15 @@ print("Data loaded. Server ready.\n")
 def index():
     games_today = snapshot_store.load_games_today()
     popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
+    biggest_edges = build_biggest_edges(analyzer, games_today) if analyzer.is_ready() else []
+    games_today_annotated = annotate_schedule_fatigue(games_today)
     return render_template(
         "index.html",
         teams=ALL_TEAM_ABBRS,
         prop_types=PROP_TYPES,
-        games_today=games_today,
+        games_today=games_today_annotated,
         popular_bets=popular_bets,
+        biggest_edges=biggest_edges,
     )
 
 
