@@ -16,7 +16,7 @@ from nba_prop_analyzer.data.team_mapping import (
 )
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
-from nba_prop_analyzer.data import snapshot_store, news
+from nba_prop_analyzer.data import snapshot_store, news, blog
 from nba_prop_analyzer.web import auth, usage
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -96,6 +96,19 @@ def index():
 @app.route("/about")
 def about():
     return render_template("about.html")
+
+
+@app.route("/blog")
+def blog_list():
+    return render_template("blog_list.html", posts=blog.list_posts())
+
+
+@app.route("/blog/<slug>")
+def blog_post(slug):
+    post = blog.get_post(slug)
+    if post is None:
+        return render_template("blog_list.html", posts=blog.list_posts(), not_found=True), 404
+    return render_template("blog_post.html", post=post)
 
 
 @app.route("/api/news")

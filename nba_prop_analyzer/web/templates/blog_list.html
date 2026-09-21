@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog — NBA Prop Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+  <header class="masthead">
+    <a href="/" class="wordmark" style="text-decoration:none; color:inherit;">matchup<span>edge</span></a>
+    <div class="account-bar">
+      <a href="/about" class="link-btn">About</a>
+      <a href="/" class="link-btn">Run the matchup</a>
+      {% if current_user %}
+        <span class="account-info">
+          <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
+          {{ current_user.name }}
+        </span>
+      {% elif auth_configured %}
+        <a href="/" class="link-btn">Sign in</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <p class="lede">Notes on matchups, methodology, and how to read an edge.</p>
+
+  <div class="about-page">
+    {% if not_found %}
+    <div class="showcase">
+      <p class="empty-hint">That post doesn't exist. Here's everything we've published:</p>
+    </div>
+    {% endif %}
+
+    {% if posts %}
+      {% for post in posts %}
+      <a href="/blog/{{ post.slug }}" class="showcase blog-list-item">
+        <h3>{{ post.title }}</h3>
+        <p class="blog-date">{{ post.date }}</p>
+        <p>{{ post.summary }}</p>
+      </a>
+      {% endfor %}
+    {% else %}
+    <div class="showcase">
+      <p class="empty-hint">Nothing published yet — check back soon.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+</body>
+</html>
