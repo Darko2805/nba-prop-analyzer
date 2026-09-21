@@ -638,6 +638,27 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.origin-story p {
+  color: var(--text);
+  line-height: 1.65;
+  max-width: 62ch;
+}
+
+.origin-story p + p {
+  margin-top: 1rem;
+}
+
+.origin-story .pull-line {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.5;
+  max-width: 52ch;
+  padding-left: 1rem;
+  border-left: 2px solid var(--accent);
+  margin: 1.5rem 0;
+}
+
 .about-section-note {
   color: var(--text-muted);
   line-height: 1.6;
