@@ -110,6 +110,7 @@ body {
   font-weight: 600;
   cursor: pointer;
   padding: 0;
+  text-decoration: none;
 }
 
 .link-btn:hover { text-decoration: underline; }
@@ -592,6 +593,25 @@ body {
 }
 
 .showcase > .empty-hint { margin-bottom: 1rem; }
+
+/* About page: same card language as .showcase, sized for prose */
+.about-page {
+  max-width: 640px;
+}
+
+.about-page .showcase h3 {
+  font-size: 1.05rem;
+}
+
+.about-page .showcase p {
+  color: var(--text);
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.about-page .showcase p + p {
+  margin-top: 0.85rem;
+}
 
 .popular-scroll {
   display: flex;

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — NBA Prop Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+  <header class="masthead">
+    <a href="/" class="wordmark" style="text-decoration:none; color:inherit;">matchup<span>edge</span></a>
+    <div class="account-bar">
+      <a href="/" class="link-btn">Run the matchup</a>
+      {% if current_user %}
+        <span class="account-info">
+          <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
+          {{ current_user.name }}
+        </span>
+      {% elif auth_configured %}
+        <a href="/" class="link-btn">Sign in</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <p class="lede">The brain behind your bet, not another voice telling you what to bet.</p>
+
+  <div class="about-page">
+
+    <div class="showcase">
+      <h3>What this is</h3>
+      <p>matchupedge runs a real statistical matchup analysis for any player, prop, and opponent — pace, opponent defense by shot zone, schedule fatigue, ball-pressure profile, and more, all pulled from this season's real data. Every number on the page comes from that analysis. Nothing is written by hand, and nothing is a fabricated line dressed up to look like insight.</p>
+    </div>
+
+    <div class="showcase">
+      <h3>What we don't do</h3>
+      <p>We don't sell picks, and we're not trying to be the loudest voice telling you what to bet tonight. A lot of tools in this space are built around a confident-sounding conclusion — a lock, a pick of the day, a tout's record. That's a different product than this one.</p>
+      <p>matchupedge is built to hand you the reasoning, not a verdict. Run a matchup and you get the same breakdown a sharp bettor would build by hand: which factor actually moved the number, how the opponent's defense stacks up in the specific zones this player attacks, whether the pace or the matchup or the schedule is doing the heavy lifting. The bet — and the judgment call underneath it — stays yours.</p>
+    </div>
+
+    <div class="showcase">
+      <h3>How the analysis works</h3>
+      <p>Every projection starts from a player's real season baseline, then adjusts it through a chain of independent factors: matchup, pace, shot-zone exploitation, volume, free-throw rate, teammate efficiency, schedule fatigue, and recent trend. Each factor is ranked against the rest of the league, not just compared to a flat average — a defense that's merely below-average and one that's dead last don't move the number by the same amount.</p>
+      <p>The Component Breakdown on every result names the single factor that actually drove the projection the most, in plain language, with the real number behind it — not a black box, and not a hidden formula. You can see exactly why the tool landed where it did, and decide for yourself whether that reasoning holds up.</p>
+    </div>
+
+    <div class="showcase">
+      <h3>One more thing</h3>
+      <p>This is an analysis tool, not a guarantee. Every projection here is a statistical estimate built from real data, and real games don't always follow the numbers. Bet within your means, and treat this as one more piece of information in your own decision — not a substitute for it.</p>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
