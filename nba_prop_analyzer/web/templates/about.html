@@ -28,31 +28,79 @@
     </div>
   </header>
 
-  <p class="lede">The brain behind your bet, not another voice telling you what to bet.</p>
+  <div class="about-hero">
+    <h1 class="about-hero-title">The brain behind your bet.<br>Not another voice telling you what to bet.</h1>
+    <p class="about-hero-sub">matchupedge runs a real statistical matchup analysis for any player, prop, and opponent — then shows you exactly which factor moved the number, so you can judge the reasoning yourself instead of just trusting a stranger's confidence.</p>
+  </div>
 
   <div class="about-page">
 
-    <div class="showcase">
-      <h3>What this is</h3>
-      <p>matchupedge runs a real statistical matchup analysis for any player, prop, and opponent — pace, opponent defense by shot zone, schedule fatigue, ball-pressure profile, and more, all pulled from this season's real data. Every number on the page comes from that analysis. Nothing is written by hand, and nothing is a fabricated line dressed up to look like insight.</p>
-    </div>
+    <section class="about-section">
+      <h2 class="about-section-title">How a projection actually gets built</h2>
+      <p class="about-section-lede">This is a real run of the tool — Nikola Jokić's points line against Boston, exactly as it appeared in Component Breakdown. Nothing below is illustrative or rounded for effect.</p>
 
-    <div class="showcase">
-      <h3>What we don't do</h3>
-      <p>We don't sell picks, and we're not trying to be the loudest voice telling you what to bet tonight. A lot of tools in this space are built around a confident-sounding conclusion — a lock, a pick of the day, a tout's record. That's a different product than this one.</p>
-      <p>matchupedge is built to hand you the reasoning, not a verdict. Run a matchup and you get the same breakdown a sharp bettor would build by hand: which factor actually moved the number, how the opponent's defense stacks up in the specific zones this player attacks, whether the pace or the matchup or the schedule is doing the heavy lifting. The bet — and the judgment call underneath it — stays yours.</p>
-    </div>
+      <div class="example-card">
+        <div class="headline-driver down">
+          <div class="headline-body">
+            <div class="headline-label">THE HEADLINE</div>
+            <div class="headline-text">Free-throw limited: opponent allows only 21.1 FTA/game (Jokić's FT rate 0.43), ranks 2nd-stingiest in the league</div>
+          </div>
+          <div class="headline-impact">
+            <div class="headline-impact-value down">−2.2</div>
+            <div class="headline-impact-unit">PTS LOST</div>
+          </div>
+        </div>
 
-    <div class="showcase">
-      <h3>How the analysis works</h3>
-      <p>Every projection starts from a player's real season baseline, then adjusts it through a chain of independent factors: matchup, pace, shot-zone exploitation, volume, free-throw rate, teammate efficiency, schedule fatigue, and recent trend. Each factor is ranked against the rest of the league, not just compared to a flat average — a defense that's merely below-average and one that's dead last don't move the number by the same amount.</p>
-      <p>The Component Breakdown on every result names the single factor that actually drove the projection the most, in plain language, with the real number behind it — not a black box, and not a hidden formula. You can see exactly why the tool landed where it did, and decide for yourself whether that reasoning holds up.</p>
-    </div>
+        <div class="factor-chain-label">ALSO FACTORED IN — THE FULL CHAIN</div>
+        <div class="factor-chain">
+          <div class="chain-step baseline"><div class="chain-step-label">BASELINE</div><div class="chain-step-value">27.7</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step up"><div class="chain-step-label">MATCHUP</div><div class="chain-step-value">x1.04</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step neutral"><div class="chain-step-label">PACE</div><div class="chain-step-value">x1.01</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step up"><div class="chain-step-label">SHOT ZONE</div><div class="chain-step-value">x1.04</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step down"><div class="chain-step-label">VOLUME</div><div class="chain-step-value">x0.94</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step headline down"><div class="chain-step-label">FT RATE</div><div class="chain-step-value">x0.92</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step up"><div class="chain-step-label">TREND</div><div class="chain-step-value">x1.02</div></div>
+          <svg class="chain-arrow" width="14" height="10" viewBox="0 0 14 10"><path d="M1 5 L13 5 M8 1 L13 5 L8 9" fill="none" stroke="#333949" stroke-width="1.5"></path></svg>
+          <div class="chain-step final"><div class="chain-step-label">FINAL</div><div class="chain-step-value">26.5</div></div>
+        </div>
+      </div>
 
-    <div class="showcase">
-      <h3>One more thing</h3>
-      <p>This is an analysis tool, not a guarantee. Every projection here is a statistical estimate built from real data, and real games don't always follow the numbers. Bet within your means, and treat this as one more piece of information in your own decision — not a substitute for it.</p>
-    </div>
+      <p class="about-section-note">Every factor is ranked against all 30 teams, not compared to a flat league average — a defense that's merely below-average and one that's dead last don't move the number by the same amount. Whichever factor actually swings the projection the most, weighted by how central it is to that specific prop, becomes the headline. The rest of the chain stays visible underneath it, so nothing is hidden.</p>
+    </section>
+
+    <section class="about-section">
+      <h2 class="about-section-title">What matchupedge is, and isn't</h2>
+      <div class="contrast-grid">
+        <div class="contrast-col">
+          <div class="contrast-col-title is">This is</div>
+          <ul class="contrast-list">
+            <li><span class="tick plus">+</span> A real matchup breakdown, built fresh from this season's data every time</li>
+            <li><span class="tick plus">+</span> Every factor ranked against the full league, not a flat average</li>
+            <li><span class="tick plus">+</span> The one factor that actually drove the number, named in plain language</li>
+            <li><span class="tick plus">+</span> Yours to read, question, and decide on</li>
+          </ul>
+        </div>
+        <div class="contrast-col">
+          <div class="contrast-col-title isnt">This isn't</div>
+          <ul class="contrast-list">
+            <li><span class="tick minus">−</span> A "lock of the day" or a tout's win-rate marketing</li>
+            <li><span class="tick minus">−</span> A fabricated line dressed up to look like insight</li>
+            <li><span class="tick minus">−</span> A black box — the full chain is always shown, not just a verdict</li>
+            <li><span class="tick minus">−</span> Something telling you what to bet</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section about-closing">
+      <p>This is an analysis tool, not a guarantee — real games don't always follow the numbers. Bet within your means, and treat this as one input into your own decision, not a substitute for it.</p>
+    </section>
 
   </div>
 </div>
