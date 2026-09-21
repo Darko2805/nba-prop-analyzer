@@ -678,6 +678,47 @@ body {
   overflow-x: auto;
 }
 
+.example-meta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
+.line-compare {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.line-compare-item {
+  flex: 1;
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.5rem;
+}
+
+.line-compare-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.line-compare-value {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.line-compare-item.lean { border-color: rgba(34, 197, 94, 0.4); background: var(--green-bg); }
+.line-compare-value.over { color: var(--green); }
+.line-compare-value.under { color: var(--red); }
+
 /* Contrast grid: "this is / this isn't" */
 .contrast-grid {
   display: grid;
