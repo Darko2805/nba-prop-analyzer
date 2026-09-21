@@ -63,8 +63,6 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
-print(f"[boot] TRACK_RECORD_KEY present: {bool(os.environ.get('TRACK_RECORD_KEY'))}")
-print(f"[boot] env keys containing TRACK: {[k for k in os.environ if 'TRACK' in k.upper()]}")
 # Render sits behind a reverse proxy -- without this, request.remote_addr is
 # the proxy's address for every visitor, which would make usage.py's
 # per-IP anonymous rate limit useless (everyone looks like the same IP).
@@ -119,9 +117,7 @@ def snapshot_track_record():
     # scheduled task -- fails closed (unlike usage.py's fail-open
     # pattern) since this is an admin action, not a real-user request.
     expected = os.environ.get("TRACK_RECORD_KEY")
-    given = request.args.get("key")
-    print(f"[route] expected_len={len(expected) if expected else 0} given_len={len(given) if given else 0} match={given == expected}")
-    if not expected or given != expected:
+    if not expected or request.args.get("key") != expected:
         return jsonify({"error": "Not found"}), 404
     if not analyzer.is_ready():
         return jsonify({"error": "Data not ready"}), 503
