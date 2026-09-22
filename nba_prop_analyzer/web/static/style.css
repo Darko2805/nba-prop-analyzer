@@ -1195,9 +1195,10 @@ a.blog-list-item p:last-child {
   border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 0.75rem 0.5rem;
+  overflow-x: auto;
 }
 
-.chain-step { flex: 1; text-align: center; border-radius: 6px; padding: 0.1rem 0; }
+.chain-step { flex: 1 0 60px; text-align: center; border-radius: 6px; padding: 0.1rem 0; }
 .chain-step-label { font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.03em; margin-bottom: 0.25rem; }
 .chain-step-value { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--text); }
 

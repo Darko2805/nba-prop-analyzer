@@ -119,76 +119,6 @@
     </form>
   </div>
 
-  <!-- Biggest Edges Tonight: the engine's own output, not hand-written copy --
-       same headline-factor selection real analyses use, run against tonight's
-       tracked players and ranked by how extreme the result actually is. -->
-  {% if biggest_edges %}
-  <div class="showcase">
-    <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
-    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
-    <div class="edge-list">
-      {% for edge in biggest_edges %}
-      <button type="button" class="edge-card" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
-        {% if edge.headshot %}
-        <img src="{{ edge.headshot }}" alt="" class="edge-headshot" onerror="this.style.display='none'">
-        {% else %}
-        <span class="edge-headshot edge-headshot-empty"></span>
-        {% endif %}
-        <div class="edge-body">
-          <div class="edge-player">{{ edge.player }} <span class="edge-vs">{{ edge.prop_unit }} vs {{ edge.opponent }}</span></div>
-          <div class="edge-note">{{ edge.headline_note }}</div>
-        </div>
-        <div class="edge-value {{ edge.headline_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Popular Bets: sits in the main column right under the form, sized to its
-       width — not a full-width band — so it never pushes the sidebar down. -->
-  {% if popular_bets %}
-  <div class="showcase">
-    <h3>Quick looks</h3>
-    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
-    <div class="popular-scroll">
-      {% for pick in popular_bets %}
-      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
-        {% if pick.headshot %}
-        <img src="{{ pick.headshot }}" alt="" class="popular-headshot" onerror="this.style.display='none'">
-        {% else %}
-        <span class="popular-headshot popular-headshot-empty"></span>
-        {% endif %}
-        <span class="popular-player">{{ pick.player }}</span>
-        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
-      </button>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- What Powers The Model: real season-long team stats the Component
-       Breakdown factors actually rank teams against -- not tied to
-       tonight's schedule, so unlike Biggest Edges/Fatigue Watch this has
-       real content year-round, including the off-season. -->
-  {% if model_inputs %}
-  <div class="showcase">
-    <h3>What powers the model</h3>
-    <p class="empty-hint">A handful of the real season numbers the model reads — one slice of the full Component Breakdown, not the whole thing.</p>
-    <div class="model-input-list">
-      {% for m in model_inputs %}
-      <div class="model-input-row">
-        <span class="model-input-factor">{{ m.factor }}</span>
-        <div class="model-input-body">
-          <span class="model-input-team">{{ m.team_name }}</span>
-          <span class="model-input-detail">{{ m.detail }}</span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Error -->
   <div class="error-msg" id="errorMsg"></div>
 
@@ -393,6 +323,77 @@
       <div class="stat-row" id="varianceRow"></div>
     </div>
   </div>
+
+  <!-- Biggest Edges Tonight: the engine's own output, not hand-written copy --
+       same headline-factor selection real analyses use, run against tonight's
+       tracked players and ranked by how extreme the result actually is. -->
+  {% if biggest_edges %}
+  <div class="showcase">
+    <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
+    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
+    <div class="edge-list">
+      {% for edge in biggest_edges %}
+      <button type="button" class="edge-card" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
+        {% if edge.headshot %}
+        <img src="{{ edge.headshot }}" alt="" class="edge-headshot" onerror="this.style.display='none'">
+        {% else %}
+        <span class="edge-headshot edge-headshot-empty"></span>
+        {% endif %}
+        <div class="edge-body">
+          <div class="edge-player">{{ edge.player }} <span class="edge-vs">{{ edge.prop_unit }} vs {{ edge.opponent }}</span></div>
+          <div class="edge-note">{{ edge.headline_note }}</div>
+        </div>
+        <div class="edge-value {{ edge.headline_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Popular Bets: sits in the main column right under the form, sized to its
+       width — not a full-width band — so it never pushes the sidebar down. -->
+  {% if popular_bets %}
+  <div class="showcase">
+    <h3>Quick looks</h3>
+    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
+    <div class="popular-scroll">
+      {% for pick in popular_bets %}
+      <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
+        {% if pick.headshot %}
+        <img src="{{ pick.headshot }}" alt="" class="popular-headshot" onerror="this.style.display='none'">
+        {% else %}
+        <span class="popular-headshot popular-headshot-empty"></span>
+        {% endif %}
+        <span class="popular-player">{{ pick.player }}</span>
+        <span class="popular-detail">{{ pick.prop_type|upper }} {{ pick.line }}{% if pick.opponent %} · vs {{ pick.opponent }}{% endif %}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- What Powers The Model: real season-long team stats the Component
+       Breakdown factors actually rank teams against -- not tied to
+       tonight's schedule, so unlike Biggest Edges/Fatigue Watch this has
+       real content year-round, including the off-season. -->
+  {% if model_inputs %}
+  <div class="showcase">
+    <h3>What powers the model</h3>
+    <p class="empty-hint">A handful of the real season numbers the model reads — one slice of the full Component Breakdown, not the whole thing.</p>
+    <div class="model-input-list">
+      {% for m in model_inputs %}
+      <div class="model-input-row">
+        <span class="model-input-factor">{{ m.factor }}</span>
+        <div class="model-input-body">
+          <span class="model-input-team">{{ m.team_name }}</span>
+          <span class="model-input-detail">{{ m.detail }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 
   </div>
 
