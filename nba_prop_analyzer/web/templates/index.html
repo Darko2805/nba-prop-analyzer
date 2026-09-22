@@ -124,8 +124,8 @@
        tracked players and ranked by how extreme the result actually is. -->
   {% if biggest_edges %}
   <div class="showcase">
-    <h3>Biggest edges tonight</h3>
-    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.</p>
+    <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
+    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
     <div class="edge-list">
       {% for edge in biggest_edges %}
       <button type="button" class="edge-card" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
@@ -378,7 +378,7 @@
 
     <!-- Tonight's Games -->
     <div class="side-block">
-      <h3>Tonight</h3>
+      <h3>Tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW</span>{% endif %}</h3>
       {% if games_today %}
         <div class="games-list">
           {% for g in games_today %}

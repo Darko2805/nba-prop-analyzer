@@ -204,6 +204,11 @@ def index():
     popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
     biggest_edges = build_biggest_edges(analyzer, games_today) if analyzer.is_ready() else []
     games_today_annotated = annotate_schedule_fatigue(games_today)
+    # True only while off-season placeholder games are loaded for a demo --
+    # set via meta.json's games_today_is_preview key, cleared automatically
+    # the next time the real daily snapshot refresh runs (it never writes
+    # this key, since it always loads the real schedule).
+    is_preview_schedule = bool(snapshot_store.load_meta().get("games_today_is_preview"))
     return render_template(
         "index.html",
         teams=ALL_TEAM_ABBRS,
@@ -211,6 +216,7 @@ def index():
         games_today=games_today_annotated,
         popular_bets=popular_bets,
         biggest_edges=biggest_edges,
+        is_preview_schedule=is_preview_schedule,
     )
 
 
