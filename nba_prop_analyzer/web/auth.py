@@ -119,6 +119,35 @@ def request_password_reset(email: str, redirect_to: str) -> None:
         raise AuthError(f"Supabase rejected the reset request ({resp.status_code}): {resp.text}")
 
 
+def verify_otp(token_hash: str, otp_type: str) -> dict:
+    """
+    Redeems a one-time email token (the token_hash carried in our own
+    confirmation/reset links) for a session. This must only ever be
+    called from an explicit user action -- a button click -- never
+    automatically when a page loads.
+
+    Why: email link-scanners (Gmail's and Outlook Safe Links' own
+    infrastructure) fetch every URL in an email to check it's safe,
+    which silently burns Supabase's one-time verification token before
+    the real user ever clicks. The user then gets "invalid or expired"
+    and, since GoTrue's own /verify redirect has nowhere valid to send
+    them, drops them on the plain site URL with no explanation --
+    exactly what caused reset links to appear to "just go to the
+    homepage." Routing links through our own page first (which does
+    nothing until a click) and only redeeming the token on that click
+    means a scanner's GET can't consume it.
+    """
+    resp = requests.post(
+        f"{SUPABASE_URL}/auth/v1/verify",
+        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+        json={"type": otp_type, "token_hash": token_hash},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        raise AuthError("That link is invalid or has expired — request a new one.")
+    return resp.json()
+
+
 def update_password(access_token: str, new_password: str) -> dict:
     """Sets a new password using the access token from a recovery link. Returns the user dict."""
     resp = requests.put(

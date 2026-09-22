@@ -564,15 +564,45 @@ def auth_reset_password():
         return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
 
     data = request.get_json(silent=True) or {}
+    token_hash = data.get("token_hash")
     access_token = data.get("access_token")
     new_password = data.get("password") or ""
-    if not access_token:
-        return jsonify({"error": "Missing access token."}), 400
+    if not token_hash and not access_token:
+        return jsonify({"error": "Missing reset token."}), 400
     if len(new_password) < 8:
         return jsonify({"error": "Password must be at least 8 characters."}), 400
 
     try:
+        if token_hash:
+            session_data = auth.verify_otp(token_hash, "recovery")
+            access_token = session_data["access_token"]
         auth.update_password(access_token, new_password)
+        user = auth.get_user_from_token(access_token)
+        name = (user.get("user_metadata") or {}).get("name", "")
+        profile = auth.upsert_profile(user["id"], user["email"], name)
+        auth.log_in_session(profile)
+    except auth.AuthError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"name": profile.get("name"), "tier": profile.get("tier")})
+
+
+@app.route("/auth/confirm-signup", methods=["POST"])
+def auth_confirm_signup():
+    # Companion to /auth/reset-password's token_hash path, for the
+    # Confirm Sign Up email link -- see verify_otp()'s docstring for why
+    # this is only ever called from an explicit button click.
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    token_hash = data.get("token_hash")
+    if not token_hash:
+        return jsonify({"error": "Missing confirmation token."}), 400
+
+    try:
+        session_data = auth.verify_otp(token_hash, "signup")
+        access_token = session_data["access_token"]
         user = auth.get_user_from_token(access_token)
         name = (user.get("user_metadata") or {}).get("name", "")
         profile = auth.upsert_profile(user["id"], user["email"], name)

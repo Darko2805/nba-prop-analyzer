@@ -27,6 +27,8 @@
         <button type="button" class="btn" id="resetSubmit" style="width:100%;">Set new password</button>
       </div>
 
+      <button type="button" class="btn" id="activateBtn" style="display:none; margin-top:1rem;">Activate my account</button>
+
       <a href="/" id="backLink" class="btn" style="display:none; text-decoration:none; margin-top:1rem;">Back to app</a>
     </div>
   </div>
@@ -40,20 +42,20 @@ function showResult(title, msg, isError) {
   document.getElementById('backLink').style.display = 'inline-block';
 }
 
-const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
-const params = new URLSearchParams(hash);
-const accessToken = params.get('access_token');
-const type = params.get('type');
-const error = params.get('error_description') || params.get('error');
+function submitReset(payload) {
+  return fetch('/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(async (resp) => {
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+      window.location.replace('/');
+    });
+}
 
-if (error) {
-  showResult('Sign-in failed', decodeURIComponent(error.replace(/\+/g, ' ')) + ' — request a new link.', true);
-} else if (!accessToken) {
-  showResult('Sign-in failed', 'No sign-in token found in this link — request a new one.', true);
-} else if (type === 'recovery') {
-  // Password recovery link: show a form instead of auto-logging in --
-  // the point of this link is to let them set a new password, not just
-  // sign them in with the old one.
+function showResetForm(onSubmit) {
   document.getElementById('statusTitle').textContent = 'Reset your password';
   document.getElementById('statusMsg').textContent = 'Choose a new password for your account.';
   document.getElementById('resetForm').style.display = 'block';
@@ -65,10 +67,47 @@ if (error) {
       document.getElementById('resetForm').style.display = 'block';
       return;
     }
-    fetch('/auth/reset-password', {
+    onSubmit(password).catch((err) => {
+      document.getElementById('resetForm').style.display = 'block';
+      showResult('Reset your password', err.message, true);
+    });
+  });
+}
+
+// New-style links (query string: ?token_hash=...&type=recovery|signup) --
+// these route through this page first and only redeem the one-time token
+// on an explicit click, so an email scanner prefetching the link can't
+// burn it before the real user gets here. See auth.py's verify_otp().
+const query = new URLSearchParams(window.location.search);
+const tokenHash = query.get('token_hash');
+const queryType = query.get('type');
+
+// Legacy links (URL fragment: #access_token=...&type=...) from
+// already-sent emails still using the old ConfirmationURL format.
+const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
+const hashParams = new URLSearchParams(hash);
+const accessToken = hashParams.get('access_token');
+const hashType = hashParams.get('type');
+
+const error = hashParams.get('error_description') || hashParams.get('error')
+  || query.get('error_description') || query.get('error');
+
+if (error) {
+  showResult('Sign-in failed', decodeURIComponent(error.replace(/\+/g, ' ')) + ' — request a new link.', true);
+} else if (tokenHash && queryType === 'recovery') {
+  showResetForm((password) => submitReset({ token_hash: tokenHash, password }));
+} else if (tokenHash && queryType === 'signup') {
+  document.getElementById('statusTitle').textContent = 'Confirm your account';
+  document.getElementById('statusMsg').textContent = 'Click below to finish activating your account.';
+  const activateBtn = document.getElementById('activateBtn');
+  activateBtn.style.display = 'inline-block';
+  activateBtn.addEventListener('click', () => {
+    activateBtn.disabled = true;
+    activateBtn.textContent = 'Activating…';
+    fetch('/auth/confirm-signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: accessToken, password }),
+      body: JSON.stringify({ token_hash: tokenHash }),
     })
       .then(async (resp) => {
         const data = await resp.json();
@@ -76,10 +115,14 @@ if (error) {
         window.location.replace('/');
       })
       .catch((err) => {
-        document.getElementById('resetForm').style.display = 'block';
-        showResult('Reset your password', err.message, true);
+        activateBtn.style.display = 'none';
+        showResult('Confirmation failed', err.message, true);
       });
   });
+} else if (!accessToken) {
+  showResult('Sign-in failed', 'No sign-in token found in this link — request a new one.', true);
+} else if (hashType === 'recovery') {
+  showResetForm((password) => submitReset({ access_token: accessToken, password }));
 } else {
   fetch('/auth/complete-login', {
     method: 'POST',
