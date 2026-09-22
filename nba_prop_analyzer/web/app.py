@@ -15,7 +15,9 @@ from nba_prop_analyzer.config import PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
     find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
+    fetch_schedule_load,
 )
+from nba_prop_analyzer.analysis.fatigue_watch import compute_fatigue_scores
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
 from nba_prop_analyzer.data import snapshot_store, news, blog, track_record
@@ -179,6 +181,47 @@ def annotate_schedule_fatigue(games_today: list) -> list:
         })
     return annotated
 
+
+def build_fatigue_watch(games_today: list, limit: int = 6) -> list:
+    """
+    Ranks tonight's playing teams by their rolling two-week schedule
+    load -- games, road games, and back-to-backs over the last 14 days,
+    weighted toward road load (see fatigue_watch.compute_fatigue_scores)
+    -- for the homepage's "Fatigue Watch" preview. This looks at the
+    last two weeks; annotate_schedule_fatigue() above only flags
+    tonight's single back-to-back/3-in-4 status, a different, narrower
+    signal shown on the schedule cards.
+
+    The window is always "the 14 days before today," so this updates on
+    its own every day as the calendar moves -- nothing here stores or
+    needs updating for a specific date range.
+    """
+    try:
+        schedule_load = fetch_schedule_load()
+        scored = compute_fatigue_scores(schedule_load)
+    except Exception:
+        return []
+
+    opponent_of = {}
+    for g in games_today:
+        away_abbr = normalize_team(g["away_team"])
+        home_abbr = normalize_team(g["home_team"])
+        opponent_of[away_abbr] = home_abbr
+        opponent_of[home_abbr] = away_abbr
+
+    watch = [
+        {
+            "team": abbr,
+            "team_name": TEAM_FULL_NAMES.get(abbr, abbr),
+            "opponent": opponent_of[abbr],
+            **data,
+        }
+        for abbr, data in scored.items()
+        if abbr in opponent_of
+    ]
+    watch.sort(key=lambda t: t["fatigue_score"], reverse=True)
+    return watch[:limit]
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
 # Render sits behind a reverse proxy -- without this, request.remote_addr is
@@ -204,6 +247,7 @@ def index():
     popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
     biggest_edges = build_biggest_edges(analyzer, games_today) if analyzer.is_ready() else []
     games_today_annotated = annotate_schedule_fatigue(games_today)
+    fatigue_watch = build_fatigue_watch(games_today) if games_today else []
     # True only while off-season placeholder games are loaded for a demo --
     # set via meta.json's games_today_is_preview key, cleared automatically
     # the next time the real daily snapshot refresh runs (it never writes
@@ -216,6 +260,7 @@ def index():
         games_today=games_today_annotated,
         popular_bets=popular_bets,
         biggest_edges=biggest_edges,
+        fatigue_watch=fatigue_watch,
         is_preview_schedule=is_preview_schedule,
     )
 

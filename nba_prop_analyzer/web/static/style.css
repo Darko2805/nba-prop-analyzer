@@ -1003,6 +1003,55 @@ a.blog-list-item p:last-child {
   margin-left: 0.4rem;
 }
 
+/* Fatigue Watch */
+.fatigue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.fatigue-row {
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+}
+
+.fatigue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.fatigue-team {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fatigue-vs { font-size: 0.8rem; color: var(--text-muted); }
+
+.fatigue-meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--card-border);
+  overflow: hidden;
+  margin-bottom: 0.45rem;
+}
+
+.fatigue-meter-fill {
+  height: 100%;
+  background: var(--orange);
+  border-radius: 3px;
+}
+
+.fatigue-detail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 /* News Feed */
 .news-feed {
   display: flex;

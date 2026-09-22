@@ -206,6 +206,81 @@ def fetch_three_in_four_teams(today=None) -> set:
     return {abbr for abbr, count in game_counts.items() if count >= 2}
 
 
+def _fetch_team_games_on(date) -> dict:
+    """
+    Like _fetch_teams_playing_on, but keyed by team abbreviation with
+    whether that game was home or away. A rolling fatigue read needs to
+    weight a team's recent road load, not just how many games it's
+    played, so plain "did they play" isn't enough here.
+    """
+    date_str = date.strftime("%Y%m%d")
+    cache_key = f"espn_scoreboard_homeaway_{date_str}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    games = {}
+    try:
+        resp = requests.get(
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}",
+            timeout=8,
+        )
+        resp.raise_for_status()
+        for event in resp.json().get("events", []):
+            competitors = (event.get("competitions") or [{}])[0].get("competitors", [])
+            for c in competitors:
+                raw_abbr = (c.get("team") or {}).get("abbreviation", "")
+                abbr = normalize_team(raw_abbr) if raw_abbr else None
+                if abbr:
+                    games[abbr] = c.get("homeAway", "")
+    except Exception:
+        games = {}
+
+    cache.set(cache_key, games)
+    return games
+
+
+def fetch_schedule_load(today=None, window_days: int = 14) -> dict:
+    """
+    Per-team rolling schedule load over the trailing `window_days` days
+    (not including today): games played, how many were on the road, and
+    how many were back-to-backs (zero rest before that game). This is
+    the raw two-week workload behind a fatigue read, not just tonight's
+    single rest day.
+
+    Always measured as "the `window_days` days before `today`" rather
+    than a stored date range, so calling this again tomorrow shifts the
+    whole window forward on its own -- yesterday's games age out, no
+    date bookkeeping required.
+    """
+    import datetime as _datetime
+    from collections import defaultdict
+
+    if today is None:
+        today = _datetime.date.today()
+
+    day_teams: dict = {}
+    load: dict = defaultdict(lambda: {"games": 0, "away_games": 0, "back_to_backs": 0})
+
+    for days_back in range(1, window_days + 1):
+        day = today - _datetime.timedelta(days=days_back)
+        games_on_day = _fetch_team_games_on(day)
+        day_teams[day] = games_on_day
+        for abbr, home_away in games_on_day.items():
+            load[abbr]["games"] += 1
+            if home_away == "away":
+                load[abbr]["away_games"] += 1
+
+    for days_back in range(1, window_days):
+        day = today - _datetime.timedelta(days=days_back)
+        prev_day = day - _datetime.timedelta(days=1)
+        for abbr in day_teams.get(day, {}):
+            if abbr in day_teams.get(prev_day, {}):
+                load[abbr]["back_to_backs"] += 1
+
+    return dict(load)
+
+
 def normalize_team(name: str):
     name = name.strip()
     if name.upper() in TEAM_ABBR_MAP:

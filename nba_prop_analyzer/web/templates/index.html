@@ -145,6 +145,29 @@
   </div>
   {% endif %}
 
+  <!-- Fatigue Watch: rolling two-week schedule load for tonight's teams --
+       games played, road games, and back-to-backs over the last 14 days,
+       weighted toward road load. Distinct from the small B2B/3RD-4 tags on
+       the schedule cards below, which only look at the last 1-3 nights. -->
+  {% if fatigue_watch %}
+  <div class="showcase">
+    <h3>Fatigue watch {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
+    <p class="empty-hint">Each team's last two weeks, not just last night — games played, how many on the road, and back-to-backs.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
+    <div class="fatigue-list">
+      {% for t in fatigue_watch %}
+      <div class="fatigue-row">
+        <div class="fatigue-head">
+          <span class="fatigue-team">{{ t.team_name }}</span>
+          <span class="fatigue-vs">vs {{ t.opponent }}</span>
+        </div>
+        <div class="fatigue-meter"><div class="fatigue-meter-fill" style="width: {{ (t.fatigue_score * 100)|round|int }}%"></div></div>
+        <div class="fatigue-detail">{{ t.games }} games in 14 days · {{ t.away_games }} on the road · {{ t.back_to_backs }} back-to-back{{ 's' if t.back_to_backs != 1 else '' }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Popular Bets: sits in the main column right under the form, sized to its
        width — not a full-width band — so it never pushes the sidebar down. -->
   {% if popular_bets %}
