@@ -167,6 +167,28 @@
   </div>
   {% endif %}
 
+  <!-- What Powers The Model: real season-long team stats the Component
+       Breakdown factors actually rank teams against -- not tied to
+       tonight's schedule, so unlike Biggest Edges/Fatigue Watch this has
+       real content year-round, including the off-season. -->
+  {% if model_inputs %}
+  <div class="showcase">
+    <h3>What powers the model</h3>
+    <p class="empty-hint">Real season data behind tonight's factors — the same numbers a live analysis reads, not a separate statistic.</p>
+    <div class="model-input-list">
+      {% for m in model_inputs %}
+      <div class="model-input-row">
+        <span class="model-input-factor">{{ m.factor }}</span>
+        <div class="model-input-body">
+          <span class="model-input-team">{{ m.team_name }}</span>
+          <span class="model-input-detail">{{ m.detail }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Error -->
   <div class="error-msg" id="errorMsg"></div>
 

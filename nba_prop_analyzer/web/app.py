@@ -239,6 +239,68 @@ def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int 
     watch.sort(key=lambda t: t["fatigue_score"], reverse=True)
     return watch[:limit]
 
+
+def build_model_inputs() -> list:
+    """
+    Real, season-long team stats -- not tied to tonight's schedule, so
+    unlike Biggest Edges/Fatigue Watch this has real content year-round,
+    including the off-season, since it reads the same full-season team
+    profiles/opponent-defense data already loaded at startup that
+    pace.py/shot_zone.py/volume.py/free_throw.py/teammate_efficiency.py
+    actually rank teams against. Nothing here is a separate, made-up
+    statistic -- it's the real inputs a live analysis would read.
+    """
+    if not analyzer.is_ready():
+        return []
+    profiles = analyzer.team_profiles
+    defenses = analyzer.opponent_defenses
+    if not profiles or not defenses:
+        return []
+
+    items = []
+
+    fastest = max((a for a in profiles if profiles[a].pace > 0), key=lambda a: profiles[a].pace, default=None)
+    if fastest:
+        items.append({
+            "team": fastest, "team_name": TEAM_FULL_NAMES.get(fastest, fastest),
+            "factor": "Pace",
+            "detail": f"Pace rating {profiles[fastest].pace:.1f} — fastest team in the league",
+        })
+
+    softest_rim = max((a for a in defenses if defenses[a].opp_at_rim_acc > 0), key=lambda a: defenses[a].opp_at_rim_acc, default=None)
+    if softest_rim:
+        items.append({
+            "team": softest_rim, "team_name": TEAM_FULL_NAMES.get(softest_rim, softest_rim),
+            "factor": "Shot Zone",
+            "detail": f"Allows {defenses[softest_rim].opp_at_rim_acc * 100:.1f}% shooting at the rim — most exploitable interior defense in the league",
+        })
+
+    leakiest = max((a for a in defenses if defenses[a].opp_ppg > 0), key=lambda a: defenses[a].opp_ppg, default=None)
+    if leakiest:
+        items.append({
+            "team": leakiest, "team_name": TEAM_FULL_NAMES.get(leakiest, leakiest),
+            "factor": "Volume",
+            "detail": f"Allows {defenses[leakiest].opp_ppg:.1f} PPG — most points surrendered in the league",
+        })
+
+    foulingest = max((a for a in defenses if defenses[a].opp_fta > 0), key=lambda a: defenses[a].opp_fta, default=None)
+    if foulingest:
+        items.append({
+            "team": foulingest, "team_name": TEAM_FULL_NAMES.get(foulingest, foulingest),
+            "factor": "Free Throws",
+            "detail": f"Sends opponents to the line {defenses[foulingest].opp_fta:.1f} times/game — most in the league",
+        })
+
+    sharpest = max((a for a in profiles if profiles[a].ts_pct > 0), key=lambda a: profiles[a].ts_pct, default=None)
+    if sharpest:
+        items.append({
+            "team": sharpest, "team_name": TEAM_FULL_NAMES.get(sharpest, sharpest),
+            "factor": "Teammate Efficiency",
+            "detail": f"{profiles[sharpest].ts_pct * 100:.1f}% true shooting as a team — most efficient offense in the league",
+        })
+
+    return items
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-FLASK_SECRET_KEY-in-production")
 # Render sits behind a reverse proxy -- without this, request.remote_addr is
@@ -270,12 +332,14 @@ def index():
     # this key, since it always loads the real schedule).
     is_preview_schedule = bool(snapshot_store.load_meta().get("games_today_is_preview"))
     fatigue_watch = build_fatigue_watch(games_today, is_preview=is_preview_schedule) if games_today else []
+    model_inputs = build_model_inputs()
     return render_template(
         "index.html",
         teams=ALL_TEAM_ABBRS,
         prop_types=PROP_TYPES,
         games_today=games_today_annotated,
         popular_bets=popular_bets,
+        model_inputs=model_inputs,
         biggest_edges=biggest_edges,
         fatigue_watch=fatigue_watch,
         is_preview_schedule=is_preview_schedule,
