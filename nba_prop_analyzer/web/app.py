@@ -182,7 +182,22 @@ def annotate_schedule_fatigue(games_today: list) -> list:
     return annotated
 
 
-def build_fatigue_watch(games_today: list, limit: int = 6) -> list:
+# Plausible (not real) two-week loads for the off-season preview schedule's
+# teams only -- fetch_schedule_load() legitimately returns nothing right now
+# since ESPN has no real games in the last 14 days for anyone. Used only
+# while is_preview is True, and always shown under the same PREVIEW tag as
+# the rest of the demo schedule -- never presented as real.
+_SAMPLE_FATIGUE_LOAD = {
+    "BOS": {"games": 8, "away_games": 6, "back_to_backs": 3},
+    "LAL": {"games": 6, "away_games": 2, "back_to_backs": 1},
+    "DEN": {"games": 5, "away_games": 1, "back_to_backs": 0},
+    "GSW": {"games": 7, "away_games": 4, "back_to_backs": 2},
+    "MIA": {"games": 6, "away_games": 5, "back_to_backs": 1},
+    "OKC": {"games": 5, "away_games": 2, "back_to_backs": 0},
+}
+
+
+def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int = 6) -> list:
     """
     Ranks tonight's playing teams by their rolling two-week schedule
     load -- games, road games, and back-to-backs over the last 14 days,
@@ -198,9 +213,11 @@ def build_fatigue_watch(games_today: list, limit: int = 6) -> list:
     """
     try:
         schedule_load = fetch_schedule_load()
-        scored = compute_fatigue_scores(schedule_load)
     except Exception:
-        return []
+        schedule_load = {}
+    if not schedule_load and is_preview:
+        schedule_load = _SAMPLE_FATIGUE_LOAD
+    scored = compute_fatigue_scores(schedule_load)
 
     opponent_of = {}
     for g in games_today:
@@ -247,12 +264,12 @@ def index():
     popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
     biggest_edges = build_biggest_edges(analyzer, games_today) if analyzer.is_ready() else []
     games_today_annotated = annotate_schedule_fatigue(games_today)
-    fatigue_watch = build_fatigue_watch(games_today) if games_today else []
     # True only while off-season placeholder games are loaded for a demo --
     # set via meta.json's games_today_is_preview key, cleared automatically
     # the next time the real daily snapshot refresh runs (it never writes
     # this key, since it always loads the real schedule).
     is_preview_schedule = bool(snapshot_store.load_meta().get("games_today_is_preview"))
+    fatigue_watch = build_fatigue_watch(games_today, is_preview=is_preview_schedule) if games_today else []
     return render_template(
         "index.html",
         teams=ALL_TEAM_ABBRS,
