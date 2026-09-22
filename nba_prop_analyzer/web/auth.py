@@ -50,7 +50,14 @@ def is_configured() -> bool:
 
 
 class AuthError(Exception):
-    pass
+    """
+    code is an optional machine-readable tag (e.g. "already_exists") the
+    frontend can branch on — the message alone is meant for display, not
+    parsing.
+    """
+    def __init__(self, message: str, code: str = None):
+        super().__init__(message)
+        self.code = code
 
 
 def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
@@ -72,10 +79,57 @@ def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
     if resp.status_code >= 400:
         body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
         if "already registered" in body.get("msg", "").lower() or body.get("error_code") == "user_already_exists":
-            raise AuthError("An account with that email already exists — try logging in instead.")
+            raise AuthError("An account with that email already exists — try logging in instead.", code="already_exists")
         if body.get("error_code") == "over_email_send_rate_limit":
-            raise AuthError("We're sending a lot of sign-up emails right now — please try again in a few minutes.")
+            raise AuthError("We're sending a lot of sign-up emails right now — please try again in a few minutes.", code="rate_limited")
         raise AuthError(f"Supabase rejected the sign-up ({resp.status_code}): {resp.text}")
+
+    # GoTrue's anti-enumeration behavior: signing up again with an email
+    # that already has a CONFIRMED account returns 200 (not an error) with
+    # a masked "success" response, so a public caller can't tell an email
+    # is taken just from the status code -- no new email is actually sent.
+    # Supabase's own documented tell for this case is an empty
+    # `identities` array on the returned user (a genuinely new signup's
+    # user object always has one entry). Without this check the caller
+    # sees identical "success" whether or not anything was actually
+    # sent, which is exactly what caused a real user to wait for a
+    # confirmation email that was never going to arrive, day after day,
+    # for an account they'd already confirmed and could just log into.
+    try:
+        body = resp.json()
+    except ValueError:
+        return
+    if isinstance(body, dict) and body.get("identities") == []:
+        raise AuthError("An account with that email already exists — try logging in instead.", code="already_exists")
+
+
+def request_password_reset(email: str, redirect_to: str) -> None:
+    """Ask Supabase to email a password-reset link. Never raises for an unknown
+    email (Supabase itself stays silent about whether the account exists)."""
+    resp = requests.post(
+        f"{SUPABASE_URL}/auth/v1/recover",
+        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
+        json={"email": email, "options": {"redirect_to": redirect_to}},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        if body.get("error_code") == "over_email_send_rate_limit":
+            raise AuthError("We're sending a lot of emails right now — please try again in a few minutes.", code="rate_limited")
+        raise AuthError(f"Supabase rejected the reset request ({resp.status_code}): {resp.text}")
+
+
+def update_password(access_token: str, new_password: str) -> dict:
+    """Sets a new password using the access token from a recovery link. Returns the user dict."""
+    resp = requests.put(
+        f"{SUPABASE_URL}/auth/v1/user",
+        headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+        json={"password": new_password},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        raise AuthError("Couldn't update your password — the reset link may have expired.")
+    return resp.json()
 
 
 def sign_in_with_password(email: str, password: str) -> dict:

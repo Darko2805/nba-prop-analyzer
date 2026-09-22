@@ -463,10 +463,38 @@ if (signupSubmit) {
         body: JSON.stringify({ name, email, password }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+      if (!resp.ok) {
+        const err = new Error(data.error || 'Something went wrong.');
+        err.code = data.error_code;
+        throw err;
+      }
       setSignupMsg(data.message, 'success');
     } catch (err) {
       setSignupMsg(err.message, 'error');
+      if (err.code === 'already_exists') {
+        const resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'link-btn';
+        resetBtn.textContent = 'Send a password reset link →';
+        resetBtn.addEventListener('click', async () => {
+          resetBtn.disabled = true;
+          resetBtn.textContent = 'Sending...';
+          try {
+            const r = await fetch('/auth/forgot-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email }),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+            setSignupMsg(d.message, 'success');
+          } catch (e) {
+            setSignupMsg(e.message, 'error');
+          }
+        });
+        signupMsg.appendChild(document.createElement('br'));
+        signupMsg.appendChild(resetBtn);
+      }
     } finally {
       signupSubmit.disabled = false;
       signupSubmit.textContent = 'Create account';

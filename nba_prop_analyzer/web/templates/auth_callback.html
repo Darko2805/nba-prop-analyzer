@@ -3,18 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Prop Analyzer</title>
+  <title>Sign in — NBA Prop Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+
 <div class="container">
-  <header>
-    <h1><span>NBA</span> Prop Analyzer</h1>
+  <header class="masthead">
+    <a href="/" class="wordmark" style="text-decoration:none; color:inherit;">matchup<span>edge</span></a>
   </header>
-  <div class="section-card" style="text-align:center">
-    <h3 id="statusTitle">Signing you in…</h3>
-    <p id="statusMsg" style="color: var(--text-muted); margin-top: 0.5rem;"></p>
-    <a href="/" id="backLink" class="btn" style="display:none; text-decoration:none; margin-top:1rem; max-width:200px;">Back to app</a>
+
+  <div class="about-page" style="max-width: 420px; margin-top: 2rem;">
+    <div class="showcase" style="text-align:center">
+      <h3 id="statusTitle">Signing you in…</h3>
+      <p id="statusMsg" class="empty-hint" style="margin-top: 0.5rem;"></p>
+
+      <div id="resetForm" style="display:none; text-align:left; margin-top: 1rem;">
+        <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:0.35rem;">New password</label>
+        <input type="password" id="newPassword" placeholder="At least 8 characters" style="width:100%; margin-bottom:0.85rem;">
+        <button type="button" class="btn" id="resetSubmit" style="width:100%;">Set new password</button>
+      </div>
+
+      <a href="/" id="backLink" class="btn" style="display:none; text-decoration:none; margin-top:1rem;">Back to app</a>
+    </div>
   </div>
 </div>
 
@@ -22,19 +36,50 @@
 function showResult(title, msg, isError) {
   document.getElementById('statusTitle').textContent = title;
   document.getElementById('statusMsg').textContent = msg;
-  document.getElementById('statusMsg').style.color = isError ? 'var(--red)' : 'var(--text-muted)';
+  document.getElementById('statusMsg').style.color = isError ? 'var(--red)' : '';
   document.getElementById('backLink').style.display = 'inline-block';
 }
 
 const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
 const params = new URLSearchParams(hash);
 const accessToken = params.get('access_token');
+const type = params.get('type');
 const error = params.get('error_description') || params.get('error');
 
 if (error) {
   showResult('Sign-in failed', decodeURIComponent(error.replace(/\+/g, ' ')) + ' — request a new link.', true);
 } else if (!accessToken) {
   showResult('Sign-in failed', 'No sign-in token found in this link — request a new one.', true);
+} else if (type === 'recovery') {
+  // Password recovery link: show a form instead of auto-logging in --
+  // the point of this link is to let them set a new password, not just
+  // sign them in with the old one.
+  document.getElementById('statusTitle').textContent = 'Reset your password';
+  document.getElementById('statusMsg').textContent = 'Choose a new password for your account.';
+  document.getElementById('resetForm').style.display = 'block';
+
+  document.getElementById('resetSubmit').addEventListener('click', () => {
+    const password = document.getElementById('newPassword').value;
+    if (password.length < 8) {
+      showResult('Reset your password', 'Password must be at least 8 characters.', true);
+      document.getElementById('resetForm').style.display = 'block';
+      return;
+    }
+    fetch('/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken, password }),
+    })
+      .then(async (resp) => {
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Something went wrong.');
+        window.location.replace('/');
+      })
+      .catch((err) => {
+        document.getElementById('resetForm').style.display = 'block';
+        showResult('Reset your password', err.message, true);
+      });
+  });
 } else {
   fetch('/auth/complete-login', {
     method: 'POST',

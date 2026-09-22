@@ -475,7 +475,7 @@ def auth_signup():
     try:
         auth.sign_up(email, password, name, redirect_to)
     except auth.AuthError as e:
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": str(e), "error_code": e.code}), 502
 
     return jsonify({"message": f"We emailed a confirmation link to {email}. Open it on this device to activate your account."})
 
@@ -535,6 +535,52 @@ def auth_complete_login():
 def auth_logout():
     auth.log_out_session()
     return redirect(url_for("index"))
+
+
+@app.route("/auth/forgot-password", methods=["POST"])
+def auth_forgot_password():
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Please enter a valid email address."}), 400
+
+    redirect_to = f"{request.url_root.rstrip('/')}/auth/callback"
+    try:
+        auth.request_password_reset(email, redirect_to)
+    except auth.AuthError as e:
+        return jsonify({"error": str(e)}), 502
+
+    # Deliberately the same message regardless of whether the account exists,
+    # matching Supabase's own anti-enumeration behavior here.
+    return jsonify({"message": f"If an account exists for {email}, we've sent a password reset link."})
+
+
+@app.route("/auth/reset-password", methods=["POST"])
+def auth_reset_password():
+    if not auth.is_configured():
+        return jsonify({"error": "Sign-in isn't configured on this server yet."}), 503
+
+    data = request.get_json(silent=True) or {}
+    access_token = data.get("access_token")
+    new_password = data.get("password") or ""
+    if not access_token:
+        return jsonify({"error": "Missing access token."}), 400
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+
+    try:
+        auth.update_password(access_token, new_password)
+        user = auth.get_user_from_token(access_token)
+        name = (user.get("user_metadata") or {}).get("name", "")
+        profile = auth.upsert_profile(user["id"], user["email"], name)
+        auth.log_in_session(profile)
+    except auth.AuthError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"name": profile.get("name"), "tier": profile.get("tier")})
 
 
 if __name__ == "__main__":
