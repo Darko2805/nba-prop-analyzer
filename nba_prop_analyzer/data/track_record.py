@@ -119,6 +119,49 @@ def snapshot_todays_predictions(analyzer, games_today: list) -> int:
     return len(rows) if resp.status_code < 400 else 0
 
 
+def fetch_scored_history(limit: int = 200) -> list:
+    """
+    Every tracked prediction that's actually been graded, most recent
+    first -- the real track record, for the paid tier's history page.
+    Never includes a still-pending row (actual_value is null), since
+    that outcome hasn't happened yet.
+    """
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return []
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/tracked_predictions",
+        headers=_headers(),
+        params={
+            "actual_value": "not.is.null",
+            "select": "date,player,opponent,prop_type,line,predicted_value,lean,actual_value,hit",
+            "order": "date.desc",
+            "limit": str(limit),
+        },
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        return []
+    return resp.json()
+
+
+def summarize_history(rows: list) -> dict:
+    """
+    Aggregate accuracy across graded rows. A PUSH or a "NO LEAN" call
+    counts toward neither hits nor misses -- it was never a directional
+    claim to grade in the first place, so including it either way would
+    misstate what the tool actually got right or wrong.
+    """
+    graded = [r for r in rows if r.get("lean") in ("OVER", "UNDER") and r.get("hit") in ("OVER", "UNDER")]
+    correct = sum(1 for r in graded if r["lean"] == r["hit"])
+    return {
+        "total_scored": len(rows),
+        "graded": len(graded),
+        "correct": correct,
+        "hit_rate": round(correct / len(graded) * 100, 1) if graded else None,
+        "earliest_date": min((r["date"] for r in rows), default=None),
+    }
+
+
 def record_outcomes() -> int:
     """
     For every tracked prediction still missing an actual result, looks

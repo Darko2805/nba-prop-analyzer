@@ -364,6 +364,23 @@ def blog_post(slug):
     return render_template("blog_post.html", post=post)
 
 
+@app.route("/track-record")
+def track_record_page():
+    history = track_record.fetch_scored_history()
+    summary = track_record.summarize_history(history)
+    user = auth.current_user()
+    is_paid = bool(user and user.get("tier") == "paid")
+    return render_template(
+        "track_record.html",
+        summary=summary,
+        # Detail rows are the paid perk; the aggregate above is shown to
+        # everyone since it's the trust-building headline, not the receipts.
+        history=history if is_paid else [],
+        is_paid=is_paid,
+        tracked_count=len(track_record.TRACKED_PLAYERS),
+    )
+
+
 @app.route("/internal/snapshot-track-record")
 def snapshot_track_record():
     # Manual trigger until this is wired into the existing daily

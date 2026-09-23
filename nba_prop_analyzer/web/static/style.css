@@ -100,7 +100,7 @@ body {
 }
 
 .tier-badge.tier-free { background: var(--card-border); color: var(--text-muted); }
-.tier-badge.tier-pro { background: var(--accent-glow); color: var(--accent); }
+.tier-badge.tier-paid { background: var(--accent-glow); color: var(--accent); }
 
 .link-btn {
   background: none;
@@ -1099,6 +1099,50 @@ a.blog-list-item p:last-child {
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* Track Record */
+.track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+}
+
+.track-date {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  width: 5.5rem;
+}
+
+.track-body { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.track-player { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+.track-detail { font-size: 0.78rem; color: var(--text-muted); }
+
+.track-hit {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+.track-hit-correct { color: var(--green); background: var(--green-bg); }
+.track-hit-incorrect { color: var(--red); background: var(--red-bg); }
+.track-hit-push { color: var(--text-muted); background: var(--card-border); }
 
 /* News Feed */
 .news-feed {

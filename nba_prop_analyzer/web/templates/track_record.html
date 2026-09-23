@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Record — NBA Prop Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="container">
+  <header class="masthead">
+    <a href="/" class="wordmark" style="text-decoration:none; color:inherit;">matchup<span>edge</span></a>
+    <div class="account-bar">
+      <a href="/about" class="link-btn">About</a>
+      <a href="/blog" class="link-btn">Blog</a>
+      <a href="/" class="link-btn">Run the matchup</a>
+      {% if current_user %}
+        <span class="account-info">
+          <span class="tier-badge tier-{{ current_user.tier }}">{{ current_user.tier|upper }}</span>
+          {{ current_user.name }}
+        </span>
+      {% elif auth_configured %}
+        <a href="/" class="link-btn">Sign in</a>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="about-hero">
+    <h1 class="about-hero-title">Every call, graded — nothing hidden.</h1>
+    <p class="about-hero-sub">Each day we snapshot a real prediction for a fixed list of {{ tracked_count }} well-known players, before their game — then check it against what actually happened. Never re-run with hindsight, never re-picked after the fact.</p>
+  </div>
+
+  <div class="about-page">
+
+    <section class="about-section">
+      <div class="stat-row">
+        <div class="stat-box">
+          <div class="label">Graded Calls</div>
+          <div class="value">{{ summary.total_scored }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Hit Rate</div>
+          <div class="value">{{ summary.hit_rate ~ '%' if summary.hit_rate is not none else '—' }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Tracking Since</div>
+          <div class="value">{{ summary.earliest_date or '—' }}</div>
+        </div>
+      </div>
+      {% if summary.total_scored == 0 %}
+      <p class="empty-hint" style="margin-top:1rem;">Nothing graded yet — it's the off-season, so none of the tracked players have a real game to check yet. This page fills in on its own once the season starts; nothing here will ever be backfilled or estimated.</p>
+      {% else %}
+      <p class="empty-hint" style="margin-top:1rem;">Hit rate excludes pushes and calls with no lean either way — a coin flip isn't a claim we made, so it isn't graded as one.</p>
+      {% endif %}
+    </section>
+
+    {% if is_paid %}
+    <section class="about-section">
+      <h2 class="about-section-title">Full history</h2>
+      {% if history %}
+      <div class="track-list">
+        {% for row in history %}
+        <div class="track-row">
+          <div class="track-date">{{ row.date }}</div>
+          <div class="track-body">
+            <span class="track-player">{{ row.player }}</span>
+            <span class="track-detail">{{ row.prop_type|upper }} {{ row.line }} vs {{ row.opponent }} — predicted {{ row.predicted_value }}, actual {{ row.actual_value }}</span>
+          </div>
+          <div class="track-hit {% if row.hit == 'PUSH' %}track-hit-push{% elif row.lean == row.hit %}track-hit-correct{% else %}track-hit-incorrect{% endif %}">{{ row.hit }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-hint">No graded predictions yet — check back once games are played this season.</p>
+      {% endif %}
+    </section>
+    {% else %}
+    <section class="about-section">
+      <h2 class="about-section-title">Full history</h2>
+      <p>Every graded call, every day — player, line, what we predicted, what actually happened — is part of the paid tier.</p>
+      <p class="about-section-note">{% if current_user %}Upgrade for unlimited analyses and the full history.{% else %}Sign up free, then upgrade for unlimited analyses and the full history.{% endif %}</p>
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+
+</body>
+</html>
