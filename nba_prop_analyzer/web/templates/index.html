@@ -599,6 +599,31 @@ const results = document.getElementById('results');
 const errorMsg = document.getElementById('errorMsg');
 const submitBtn = document.getElementById('submitBtn');
 
+// Auto-fill the Line field with a real season-average starting point
+// (nearest 0.5, same convention as Quick Looks/Biggest Edges) whenever a
+// player is entered or the prop type changes -- never leaves it blank
+// once a real player is recognized, but the field stays fully editable
+// so the user can still type over it with their own line before running.
+const playerInput = document.getElementById('player');
+const propTypeSelect = document.getElementById('prop_type');
+const lineInput = document.getElementById('line');
+
+async function suggestLine() {
+  const player = playerInput.value.trim();
+  if (!player) return;
+  try {
+    const resp = await fetch(`/api/suggest-line?player=${encodeURIComponent(player)}&prop_type=${encodeURIComponent(propTypeSelect.value)}`);
+    const data = await resp.json();
+    if (data.line !== null && data.line !== undefined) {
+      lineInput.value = data.line;
+    }
+  } catch (e) {
+    // Silent -- the field just stays whatever it was; not worth an error banner for a suggestion.
+  }
+}
+playerInput.addEventListener('blur', suggestLine);
+propTypeSelect.addEventListener('change', suggestLine);
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
 

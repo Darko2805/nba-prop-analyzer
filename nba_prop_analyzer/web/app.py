@@ -11,7 +11,7 @@ if _repo_root not in sys.path:
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.analysis.headline import select_headline_factor, summarize_signal_agreement
-from nba_prop_analyzer.config import PROP_TYPES
+from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
     find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
@@ -36,6 +36,18 @@ POPULAR_PLAYERS = [
 
 def _round_to_half(value: float) -> float:
     return round(value * 2) / 2
+
+
+# Real per-game season-average attribute backing each single-stat prop type's
+# suggested line -- same "nearest 0.5 of season average" convention as
+# Quick Looks/Biggest Edges, never a fabricated number. Combo prop types
+# (pra, pts_ast, ...) aren't listed here; they're summed from their
+# COMBO_PROP_TYPES components instead.
+_PROP_BASELINE_ATTR = {
+    "points": "ppg", "rebounds": "rpg", "assists": "apg",
+    "3pm": "three_pm_pg", "3pa": "three_pa_pg",
+    "fgm": "fgm_pg", "fga": "fga_pg", "turnovers": "topg",
+}
 
 
 def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
@@ -425,6 +437,35 @@ def api_news():
         return jsonify({"items": news.fetch_news()})
     except Exception as e:
         return jsonify({"items": [], "error": str(e)}), 502
+
+
+@app.route("/api/suggest-line")
+def api_suggest_line():
+    # Backs the Analyze form's auto-filled Line field: a real season-average
+    # starting point for whatever player/prop is currently selected, not a
+    # blank box -- the user can still type over it before running. Same
+    # baseline convention as Quick Looks/Biggest Edges, just looked up live
+    # for any player instead of a fixed roster.
+    if not analyzer.is_ready():
+        return jsonify({"line": None})
+
+    name = (request.args.get("player") or "").strip()
+    prop_type = (request.args.get("prop_type") or "points").strip()
+    if not name:
+        return jsonify({"line": None})
+
+    player = find_player(name, analyzer.players)
+    if not player:
+        return jsonify({"line": None})
+
+    if prop_type in COMBO_PROP_TYPES:
+        baseline = sum(getattr(player, _PROP_BASELINE_ATTR[p], 0) for p in COMBO_PROP_TYPES[prop_type])
+    else:
+        baseline = getattr(player, _PROP_BASELINE_ATTR.get(prop_type, "ppg"), 0)
+
+    if baseline <= 0:
+        return jsonify({"line": None})
+    return jsonify({"line": _round_to_half(baseline)})
 
 
 @app.route("/analyze", methods=["POST"])
