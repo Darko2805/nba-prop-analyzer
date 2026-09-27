@@ -839,6 +839,19 @@ function zoneOpacity(freq) {
   return Math.min(0.55, Math.max(0.15, freq * 0.8));
 }
 
+// Word banding is purely for the sentence's readability -- the underlying
+// gap value driving the rank/color/severity math is untouched and stays
+// fully continuous (see severity.py); this just phrases it for a reader
+// instead of asking them to eyeball a raw percentage-point delta.
+function gapDescriptor(gap) {
+  const pct = gap * 100;
+  if (pct >= 8) return 'well above';
+  if (pct >= 3) return 'above';
+  if (pct <= -8) return 'well below';
+  if (pct <= -3) return 'below';
+  return 'right around';
+}
+
 const ZONE_SHAPE_IDS = {
   at_rim: 'zoneAtRim',
   short_mid: 'zoneShortMid',
@@ -926,18 +939,31 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
       group.querySelector('.zone-ball-sign').textContent = zone.gap < 0 ? '−' : '+';
     }
 
-    const gapPct = (zone.gap * 100).toFixed(1);
-    const gapSign = zone.gap > 0 ? '+' : '';
     const badge = RANK_BADGES[i] || { text: `#${i + 1}`, cls: '' };
+    // Two short lines instead of one dense sentence: what the player himself
+    // does in this zone, then separately how this defense actually plays it
+    // -- an "exploit" can come from the player being good here, the defense
+    // being bad here, or both, and the old single-line version couldn't
+    // show which. "shooting" is spelled out on both sides so a number is
+    // never ambiguous between a make-percentage and a volume/attempt share.
+    const gapDesc = gapDescriptor(zone.gap);
+    // Player's own shooting accuracy is only real data for 3PT right now --
+    // at-rim/short-mid/long-mid accuracy was never actually populated for
+    // any player in the current data pipeline (confirmed: 0 of 578), so
+    // this only claims it where it's genuinely known rather than printing
+    // a misleading "0.0%".
+    const playerAccClause = zone.player_acc > 0 ? `, making ${(zone.player_acc * 100).toFixed(1)}%` : '';
     legend.innerHTML += `
       <div class="court-legend-item">
         <span class="court-legend-swatch" style="background:${rankColor}"></span>
-        <span class="court-legend-text">
-          <span class="court-rank-badge ${badge.cls}">${badge.text}</span>
-          <strong>${zone.label}</strong> — ${(zone.player_freq * 100).toFixed(0)}% usage,
-          opp allows ${(zone.opp_acc * 100).toFixed(1)}% (league ${(zone.league_acc * 100).toFixed(1)}%,
-          ${gapSign}${gapPct}%)
-        </span>
+        <div class="court-legend-text">
+          <div class="court-legend-head">
+            <span class="court-rank-badge ${badge.cls}">${badge.text}</span>
+            <strong>${zone.label}</strong>
+          </div>
+          <div class="court-legend-row"><span class="court-legend-tag">Player</span> shoots here ${(zone.player_freq * 100).toFixed(0)}% of the time${playerAccClause}</div>
+          <div class="court-legend-row"><span class="court-legend-tag">Defense</span> allows ${(zone.opp_acc * 100).toFixed(1)}% shooting — ${gapDesc} the ${(zone.league_acc * 100).toFixed(1)}% league average</div>
+        </div>
       </div>`;
   });
 }

@@ -586,6 +586,29 @@ body {
   color: var(--text);
 }
 
+.court-legend-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.court-legend-row {
+  line-height: 1.5;
+  margin-bottom: 0.1rem;
+}
+
+.court-legend-row:last-child { margin-bottom: 0; }
+
+.court-legend-tag {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  width: 4.2rem;
+}
+
 .court-rank-badge {
   display: inline-block;
   font-size: 0.65rem;

@@ -235,24 +235,29 @@ def calculate_shot_zone_exploitation(
 
     steps.insert(0, summary)
 
+    # Player's own shooting accuracy in each zone -- previously missing from
+    # the UI entirely, which only ever showed how OFTEN the player shoots
+    # from a zone (frequency) next to how well the OPPONENT defends it,
+    # with no way to tell whether an "exploit" is real because the player
+    # is actually good there, or just because the defense is bad there.
     zones = {
         "at_rim": {
-            "label": "At Rim", "player_freq": round(at_rim, 3),
+            "label": "At Rim", "player_freq": round(at_rim, 3), "player_acc": round(player.at_rim_acc, 3),
             "opp_acc": round(opp_rim_acc, 3), "league_acc": _LEAGUE["at_rim_acc"], "gap": round(rim_gap, 3),
             "rank": rim_rank, "league_size": league_n, "severity": round(rim_severity, 4),
         },
         "short_mid": {
-            "label": "Short Mid", "player_freq": round(short_mid, 3),
+            "label": "Short Mid", "player_freq": round(short_mid, 3), "player_acc": round(player.short_mid_acc, 3),
             "opp_acc": round(opp_s_mid_acc, 3), "league_acc": _LEAGUE["short_mid_acc"], "gap": round(s_mid_gap, 3),
             "rank": s_mid_rank, "league_size": league_n, "severity": round(s_mid_severity, 4),
         },
         "long_mid": {
-            "label": "Long Mid", "player_freq": round(long_mid, 3),
+            "label": "Long Mid", "player_freq": round(long_mid, 3), "player_acc": round(player.long_mid_acc, 3),
             "opp_acc": round(opp_l_mid_acc, 3), "league_acc": _LEAGUE["long_mid_acc"], "gap": round(l_mid_gap, 3),
             "rank": l_mid_rank, "league_size": league_n, "severity": round(l_mid_severity, 4),
         },
         "three": {
-            "label": "3PT", "player_freq": round(three_rate, 3),
+            "label": "3PT", "player_freq": round(three_rate, 3), "player_acc": round(player.three_pct, 3),
             "opp_acc": round(opp_three_acc, 3), "league_acc": _LEAGUE["three_acc"], "gap": round(three_gap, 3),
             "rank": three_rank, "league_size": league_n, "severity": round(three_severity, 4),
         },
