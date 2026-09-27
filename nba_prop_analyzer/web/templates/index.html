@@ -72,7 +72,25 @@
   </div>
   {% endif %}
 
-  <p class="lede">Enter a player and a line. We break down the matchup — the bet is still yours to make.</p>
+  <!-- Hero: same idea as the plain lede it replaces, given real room to
+       land -- eyebrow, headline, subtitle, two CTAs into sections that
+       already exist on this page (the form, Biggest Edges). No new
+       visual language: same accent/fonts/radii as the rest of the site. -->
+  <section class="hero">
+    <svg class="hero-court" viewBox="0 0 400 360" preserveAspectRatio="xMaxYMid meet" aria-hidden="true">
+      <circle cx="330" cy="180" r="90" fill="none" stroke="var(--card-border)" stroke-width="2"></circle>
+      <circle cx="330" cy="180" r="34" fill="none" stroke="var(--card-border)" stroke-width="2"></circle>
+      <path d="M40 20 A 230 230 0 0 1 40 340" fill="none" stroke="var(--card-border)" stroke-width="2"></path>
+      <line x1="330" y1="0" x2="330" y2="360" stroke="var(--card-border)" stroke-width="2"></line>
+    </svg>
+    <span class="hero-eyebrow">NBA Player Prop Analytics</span>
+    <h1 class="hero-title">Find the <span class="hero-accent">edge</span> before tip-off</h1>
+    <p class="hero-sub">We break down the matchup with real season data and league-wide rankings — the bet is still yours to make.</p>
+    <div class="hero-actions">
+      <a href="#analyzeForm" class="hero-btn hero-btn--primary">Analyze a Prop</a>
+      {% if biggest_edges %}<a href="#top-picks" class="hero-btn hero-btn--secondary">See Top Picks</a>{% endif %}
+    </div>
+  </section>
 
   <div class="dossier">
   <div class="dossier-main">
@@ -329,7 +347,7 @@
        same headline-factor selection real analyses use, run against tonight's
        tracked players and ranked by how extreme the result actually is. -->
   {% if biggest_edges %}
-  <div class="showcase">
+  <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
     <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
     <div class="edge-list">
