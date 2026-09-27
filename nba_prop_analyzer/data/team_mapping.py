@@ -281,6 +281,42 @@ def fetch_schedule_load(today=None, window_days: int = 14) -> dict:
     return dict(load)
 
 
+def fetch_injuries() -> dict:
+    """
+    Real, current injury status per player, keyed by ESPN's own display
+    name (e.g. "Jayson Tatum") -- {"status": "Day-To-Day", "comment": "..."}.
+    Same site.api.espn.com family already used for the scoreboard above,
+    so it works live from Render/Railway with no scraping. Cached for an
+    hour via the existing SessionCache, same as everything else here.
+    """
+    cache_key = "espn_injuries"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = {}
+    try:
+        resp = requests.get(
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries",
+            timeout=8,
+        )
+        resp.raise_for_status()
+        for team in resp.json().get("injuries", []):
+            for inj in team.get("injuries", []):
+                athlete = inj.get("athlete", {})
+                name = athlete.get("displayName", "")
+                if name:
+                    result[name] = {
+                        "status": inj.get("status", ""),
+                        "comment": inj.get("shortComment", ""),
+                    }
+    except Exception:
+        result = {}
+
+    cache.set(cache_key, result)
+    return result
+
+
 def normalize_team(name: str):
     name = name.strip()
     if name.upper() in TEAM_ABBR_MAP:

@@ -15,7 +15,7 @@ from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
     find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
-    fetch_schedule_load,
+    fetch_schedule_load, fetch_injuries,
 )
 from nba_prop_analyzer.analysis.fatigue_watch import compute_fatigue_scores
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
@@ -82,7 +82,7 @@ _EDGE_PROP_BASELINE = {"points": "ppg", "rebounds": "rpg", "assists": "apg"}
 _EDGE_PROP_UNIT = {"points": "PTS", "rebounds": "REB", "assists": "AST"}
 
 
-def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 3) -> list:
+def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 8) -> list:
     """
     The engine's own output, surfaced on the homepage instead of only
     after you run an analysis yourself: for tonight's tracked players,
@@ -95,12 +95,20 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
     because it's extreme in more than one stat.
     """
     todays_opponent_by_team = {}
+    is_home_by_team = {}
     for g in games_today:
         away_abbr = normalize_team(g["away_team"])
         home_abbr = normalize_team(g["home_team"])
         if away_abbr and home_abbr:
             todays_opponent_by_team[away_abbr] = home_abbr
             todays_opponent_by_team[home_abbr] = away_abbr
+            is_home_by_team[away_abbr] = False
+            is_home_by_team[home_abbr] = True
+
+    try:
+        injuries_by_player = fetch_injuries()
+    except Exception:
+        injuries_by_player = {}
 
     candidates = []
     for name in track_record.TRACKED_PLAYERS:
@@ -148,16 +156,36 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
             # a real projected OVER, which read as a contradiction.
             lean_direction = "up" if pred.over_probability > 0.55 else ("down" if pred.under_probability > 0.55 else "neutral")
 
+            # L10 avg/hit-rate reuses analyze_prop()'s own game-log summary
+            # (the same data "Recent Form vs the Line" already shows for a
+            # single analysis) instead of a second, separate game-log fetch.
+            recent = bd.get("recent_games")
+            if recent and recent.get("values"):
+                l10_values = recent["values"]
+                hits_of_10 = sum(1 for v in l10_values if v > line)
+                l10_avg = round(recent["avg"], 1)
+                l10_hit_pct = round(hits_of_10 / len(l10_values) * 100)
+            else:
+                l10_avg = hits_of_10 = l10_hit_pct = None
+
+            inj = injuries_by_player.get(player.name)
+
             candidates.append({
                 "player": player.name,
                 "team": player.team_abbr,
                 "opponent": opponent,
+                "is_home": is_home_by_team.get(normalize_team(player.team_abbr), False),
                 "prop_type": prop_type,
                 "prop_unit": _EDGE_PROP_UNIT[prop_type],
                 "line": line,
                 "predicted_value": round(pred.predicted_value, 1),
+                "edge": round(pred.predicted_value - line, 1),
                 "headline_note": note,
                 "lean_direction": lean_direction,
+                "l10_avg": l10_avg,
+                "l10_hit_pct": l10_hit_pct,
+                "l10_hits": hits_of_10,
+                "injury_status": inj["status"] if inj else None,
                 "score": headline["score"],
                 "espn_id": find_espn_player_id(player.name, player.team_abbr),
             })

@@ -349,22 +349,51 @@
   {% if biggest_edges %}
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
-    <p class="empty-hint">The single factor that moved each projection the most — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
-    <div class="edge-list">
-      {% for edge in biggest_edges %}
-      <button type="button" class="edge-card" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
-        {% if edge.headshot %}
-        <img src="{{ edge.headshot }}" alt="" class="edge-headshot" onerror="this.style.display='none'">
-        {% else %}
-        <span class="edge-headshot edge-headshot-empty"></span>
-        {% endif %}
-        <div class="edge-body">
-          <div class="edge-player">{{ edge.player }} <span class="edge-vs">{{ edge.prop_unit }} vs {{ edge.opponent }}</span></div>
-          <div class="edge-note">{{ edge.headline_note }}</div>
-        </div>
-        <div class="edge-value {{ edge.lean_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
-      </button>
-      {% endfor %}
+    <p class="empty-hint">The single factor that moved each projection the most, the real edge over the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
+    <div class="edge-table-wrap">
+      <table class="edge-table">
+        <thead>
+          <tr>
+            <th class="edge-th-player">Player</th>
+            <th>Matchup</th>
+            <th class="num">Line</th>
+            <th class="num">Edge</th>
+            <th class="num">L10 Avg</th>
+            <th class="num">L10 Hit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for edge in biggest_edges %}
+          <tr class="edge-row" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
+            <td class="edge-td-player">
+              <div class="player-cell">
+                {% if edge.headshot %}
+                <img src="{{ edge.headshot }}" alt="" class="player-headshot" onerror="this.style.display='none'">
+                {% else %}
+                <span class="player-headshot player-headshot-empty"></span>
+                {% endif %}
+                <div class="player-main">
+                  <div class="player-name-row">
+                    <span class="player-name">{{ edge.player }}</span>
+                    {% if edge.injury_status %}<span class="injury-badge">{{ edge.injury_status }}</span>{% endif %}
+                  </div>
+                  <div class="edge-note">{{ edge.headline_note }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="num">{{ edge.prop_unit }} · {{ 'vs' if edge.is_home else '@' }} {{ edge.opponent }}</td>
+            <td class="num">{{ edge.line }}</td>
+            <td class="num"><span class="edge-value {{ edge.lean_direction }}">{{ "%+.1f"|format(edge.edge) }}</span></td>
+            <td class="num">{{ edge.l10_avg if edge.l10_avg is not none else '—' }}</td>
+            <td class="num">
+              {% if edge.l10_hit_pct is not none %}
+              <span class="hit-value {{ 'hit-strong' if edge.l10_hit_pct >= 60 else ('hit-weak' if edge.l10_hit_pct <= 40 else 'hit-mid') }}"><span class="hit-frac">{{ edge.l10_hits }}/10 ·</span> <span class="hit-pct">{{ edge.l10_hit_pct }}%</span></span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
   {% endif %}
@@ -1045,7 +1074,7 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
 }
 
 // Popular Bets quick-picks + Biggest Edges cards: fill the form and run the same analysis flow.
-document.querySelectorAll('.popular-card, .edge-card').forEach((card) => {
+document.querySelectorAll('.popular-card, .edge-row').forEach((card) => {
   card.addEventListener('click', () => {
     document.getElementById('player').value = card.dataset.player;
     document.getElementById('opponent').value = card.dataset.opponent || '';

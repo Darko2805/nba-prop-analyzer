@@ -979,52 +979,86 @@ a.blog-list-item p:last-child {
 }
 
 /* Biggest Edges Tonight */
-.edge-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+/* Biggest Edges table */
+.edge-table-wrap {
+  overflow-x: auto;
+  margin: 0 -1.25rem;
+  padding: 0 1.25rem 0.25rem;
 }
 
-.edge-card {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  background: var(--bg);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.75rem 0.9rem;
+.edge-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 640px; }
+
+.edge-table th {
   text-align: left;
-  cursor: pointer;
-  font-family: inherit;
-  color: inherit;
-  width: 100%;
-  transition: border-color 0.15s, transform 0.15s;
+  padding: 0 0.6rem 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
 }
 
-.edge-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-.edge-card:hover .edge-player { color: var(--accent); }
+.edge-table th.num, .edge-table td.num { text-align: right; font-family: var(--font-mono); }
 
-.edge-headshot {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+.edge-table td {
+  padding: 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: top;
+}
+
+.edge-table tr:last-child td { border-bottom: none; }
+.edge-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.edge-row { cursor: pointer; }
+.edge-row:hover .player-name { color: var(--accent); }
+
+.edge-td-player { min-width: 240px; max-width: 320px; }
+
+.player-cell { display: flex; align-items: flex-start; gap: 0.6rem; }
+
+.player-headshot {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
   object-position: top center;
   background: var(--card);
   border: 1px solid var(--card-border);
+  flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 
-.edge-body { flex-grow: 1; min-width: 0; }
+.player-headshot-empty { display: inline-block; }
+.player-main { min-width: 0; }
 
-.edge-player {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text);
-  transition: color 0.15s;
+.player-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-.edge-vs { font-weight: 400; color: var(--text-muted); font-size: 0.8rem; }
+.player-name { font-weight: 600; color: var(--text); transition: color 0.15s; }
+
+.injury-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--red);
+  background: var(--red-bg);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  white-space: nowrap;
+}
+
+.hit-value.hit-strong { color: var(--green); }
+.hit-value.hit-mid { color: var(--text); }
+.hit-value.hit-weak { color: var(--red); }
+.hit-value .hit-pct { font-weight: 600; }
+.hit-value .hit-frac { color: var(--text-muted); font-size: 0.8em; }
 
 .edge-note {
   font-size: 0.8rem;
@@ -1049,14 +1083,6 @@ a.blog-list-item p:last-child {
 
 .edge-value.up { color: var(--green); }
 .edge-value.down { color: var(--red); }
-
-.edge-value-unit {
-  display: block;
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.04em;
-}
 
 /* Schedule fatigue tags in the Tonight sidebar */
 .fatigue-tag {
