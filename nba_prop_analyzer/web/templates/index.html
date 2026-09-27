@@ -274,25 +274,29 @@
                Each ball also carries a +/- sign matching the gap direction, so the
                takeaway doesn't depend on color alone. -->
           <g id="ballAtRim" class="zone-ball-marker" transform="translate(245,383)">
-            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
+            <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
           <g id="ballShortMid" class="zone-ball-marker" transform="translate(245,338)">
-            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
+            <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
           <g id="ballLongMid" class="zone-ball-marker" transform="translate(245,248)">
-            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
+            <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
           <g id="ballThree" class="zone-ball-marker" transform="translate(245,115)">
-            <use href="#basketballIcon" x="-12" y="-12" width="24" height="24"></use>
+            <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
+            <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
         </svg>
         <div class="court-legend" id="courtLegend"></div>
       </div>
-      <p class="court-hint">Drawn to real NBA half-court proportions. Ranked from the opponent's biggest weakness to their toughest coverage, each zone gets its own ball, colored green-to-red by rank (green = best exploit, red = toughest coverage) with a +/- sign matching the gap direction — the ring's shade still tracks the raw gap, and how solid it looks reflects how often the player actually shoots from there. The logo at top is the analyzed player's own team.</p>
+      <p class="court-hint">Drawn to real NBA half-court proportions. Ranked from the opponent's biggest weakness to their toughest coverage — each zone is labeled and colored green-to-red by that rank (green = best exploit, red = toughest coverage), with a +/- sign matching the gap direction, and how solid it looks reflects how often the player actually shoots from there. The logo at top is the analyzed player's own team.</p>
     </div>
 
     <!-- Recent Form vs the Line -->
@@ -818,23 +822,6 @@ function renderResults(d) {
   results.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Diverging red -> gray -> green scale, continuous (not bucketed) so even a
-// mild unfavorable gap reads as visibly red instead of defaulting to neutral gray.
-const COLOR_RED = [239, 68, 68];
-const COLOR_GRAY = [139, 141, 151];
-const COLOR_GREEN = [34, 197, 94];
-const GAP_SCALE = 0.12; // gap magnitude (12%) that reaches fully-saturated color
-
-function lerpChannel(a, b, t) { return Math.round(a + (b - a) * t); }
-function lerpColor(c1, c2, t) {
-  return `rgb(${lerpChannel(c1[0], c2[0], t)}, ${lerpChannel(c1[1], c2[1], t)}, ${lerpChannel(c1[2], c2[2], t)})`;
-}
-
-function zoneColor(gap) {
-  const t = Math.max(-1, Math.min(1, gap / GAP_SCALE));
-  return t < 0 ? lerpColor(COLOR_RED, COLOR_GRAY, t + 1) : lerpColor(COLOR_GRAY, COLOR_GREEN, t);
-}
-
 function zoneOpacity(freq) {
   return Math.min(0.55, Math.max(0.15, freq * 0.8));
 }
@@ -907,36 +894,45 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
     teamWash.setAttribute('fill', 'transparent');
   }
 
-  // Paint the court shapes (fixed geometry, independent of ranking).
-  Object.entries(ZONE_SHAPE_IDS).forEach(([key, shapeId]) => {
-    const zone = zones[key];
-    const shape = document.getElementById(shapeId);
-    if (!zone) {
-      shape.style.fill = 'transparent';
-      return;
-    }
-    shape.style.fill = zoneColor(zone.gap);
-    shape.style.fillOpacity = zoneOpacity(zone.player_freq);
+  // Clear all shapes/balls first (some zones may not apply to this prop).
+  Object.values(ZONE_SHAPE_IDS).forEach((shapeId) => {
+    document.getElementById(shapeId).style.fill = 'transparent';
   });
-
-  // Rank zones from biggest opponent weakness to toughest coverage.
-  const rankedEntries = Object.entries(zones).sort((a, b) => b[1].gap - a[1].gap);
-
   Object.values(BALL_IDS).forEach((ballId) => {
     const group = document.getElementById(ballId);
     group.style.color = 'transparent';
     group.querySelector('.zone-ball-sign').textContent = '';
+    const labelEl = group.querySelector('.zone-ball-label');
+    if (labelEl) labelEl.textContent = '';
   });
+
+  // Rank zones from biggest opponent weakness to toughest coverage. The
+  // zone's fill on the court and its ball marker now share the exact same
+  // rank-based color (previously the fill used a separate continuous
+  // gap-based gradient while the ball used this discrete rank color -- two
+  // different color languages on one diagram, which read as inconsistent
+  // more than it read as informative). Opacity still separately tracks how
+  // often the player actually shoots from there.
+  const rankedEntries = Object.entries(zones).sort((a, b) => b[1].gap - a[1].gap);
+  const ZONE_SHORT_LABEL = { at_rim: 'RIM', short_mid: 'SHORT', long_mid: 'LONG', three: '3PT' };
 
   const legend = document.getElementById('courtLegend');
   legend.innerHTML = '';
   rankedEntries.forEach(([key, zone], i) => {
     const rankColor = RANK_COLORS[i] || '#8b8d97';
+    const shapeId = ZONE_SHAPE_IDS[key];
+    if (shapeId) {
+      const shape = document.getElementById(shapeId);
+      shape.style.fill = rankColor;
+      shape.style.fillOpacity = zoneOpacity(zone.player_freq);
+    }
     const ballId = BALL_IDS[key];
     if (ballId) {
       const group = document.getElementById(ballId);
       group.style.color = rankColor;
       group.querySelector('.zone-ball-sign').textContent = zone.gap < 0 ? '−' : '+';
+      const labelEl = group.querySelector('.zone-ball-label');
+      if (labelEl) labelEl.textContent = ZONE_SHORT_LABEL[key] || '';
     }
 
     const badge = RANK_BADGES[i] || { text: `#${i + 1}`, cls: '' };

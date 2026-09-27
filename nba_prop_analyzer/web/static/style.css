@@ -549,11 +549,28 @@ body {
 }
 
 .zone-ball-sign {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 800;
   fill: #0f1117;
   stroke: #fff;
   stroke-width: 2px;
+  paint-order: stroke;
+  pointer-events: none;
+}
+
+/* Sized for the SVG's own 490-unit coordinate space, not screen pixels --
+   the court typically renders at ~55-65% of that, so a "normal" 11-13px
+   caption needs to be specified around 20px here to still read clearly
+   once scaled down (verified against the actual rendered size, not
+   assumed). */
+.zone-ball-label {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  fill: currentColor;
+  stroke: rgba(15, 17, 23, 0.85);
+  stroke-width: 3.5px;
   paint-order: stroke;
   pointer-events: none;
 }
