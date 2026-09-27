@@ -344,7 +344,7 @@
           <div class="edge-player">{{ edge.player }} <span class="edge-vs">{{ edge.prop_unit }} vs {{ edge.opponent }}</span></div>
           <div class="edge-note">{{ edge.headline_note }}</div>
         </div>
-        <div class="edge-value {{ edge.headline_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
+        <div class="edge-value {{ edge.lean_direction }}">{{ edge.predicted_value }}<span class="edge-value-unit">{{ edge.prop_unit }}</span></div>
       </button>
       {% endfor %}
     </div>

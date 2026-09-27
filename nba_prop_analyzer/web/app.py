@@ -125,6 +125,17 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
             if not note or headline["deviation"] < 0.01:
                 continue  # nothing notable enough to feature
 
+            # The predicted-value number's color is the actual verdict (same
+            # >55% threshold as everywhere else the app defines "lean" --
+            # app.py's /analyze route, track_record.py's snapshot), never the
+            # headline factor's own direction. The headline factor is chosen
+            # by loudest weighted deviation, not by which way it argues, so
+            # it can point opposite the real lean (e.g. a strong OVER whose
+            # single loudest factor is still a bearish one) -- coloring the
+            # number by the factor instead of the verdict was showing red on
+            # a real projected OVER, which read as a contradiction.
+            lean_direction = "up" if pred.over_probability > 0.55 else ("down" if pred.under_probability > 0.55 else "neutral")
+
             candidates.append({
                 "player": player.name,
                 "team": player.team_abbr,
@@ -134,7 +145,7 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
                 "line": line,
                 "predicted_value": round(pred.predicted_value, 1),
                 "headline_note": note,
-                "headline_direction": headline["direction"],
+                "lean_direction": lean_direction,
                 "score": headline["score"],
                 "espn_id": find_espn_player_id(player.name, player.team_abbr),
             })
