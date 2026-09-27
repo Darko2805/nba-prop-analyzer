@@ -66,6 +66,11 @@
         {% for row in history %}
         <div class="track-row">
           <div class="track-date">{{ row.date }}</div>
+          {% if row.headshot %}
+          <img src="{{ row.headshot }}" alt="" class="player-headshot" onerror="this.style.display='none'">
+          {% else %}
+          <span class="player-headshot player-headshot-empty"></span>
+          {% endif %}
           <div class="track-body">
             <span class="track-player">{{ row.player }}</span>
             <span class="track-detail">{{ row.prop_type|upper }} {{ row.line }} vs {{ row.opponent }} — predicted {{ row.predicted_value }}, actual {{ row.actual_value }}</span>

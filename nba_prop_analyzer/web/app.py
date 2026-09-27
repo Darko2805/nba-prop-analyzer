@@ -421,6 +421,13 @@ def track_record_page():
     summary = track_record.summarize_history(history)
     user = auth.current_user()
     is_paid = bool(user and user.get("tier") == "paid")
+
+    if is_paid:
+        for row in history:
+            player = find_player(row["player"], analyzer.players) if analyzer.is_ready() else None
+            espn_id = find_espn_player_id(row["player"], player.team_abbr) if player else None
+            row["headshot"] = espn_headshot_url(espn_id) if espn_id else None
+
     return render_template(
         "track_record.html",
         summary=summary,
