@@ -580,23 +580,32 @@ body {
   min-width: 220px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
 .court-legend-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.65rem;
   font-size: 0.82rem;
   color: var(--text-muted);
+  padding: 0.8rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
 }
 
 .court-legend-swatch {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  margin-top: 0.15rem;
+  margin-top: 0.25rem;
   flex-shrink: 0;
+}
+
+.court-legend-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .court-legend-text strong {
@@ -606,24 +615,26 @@ body {
 .court-legend-head {
   display: flex;
   align-items: center;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.55rem;
 }
 
 .court-legend-row {
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  column-gap: 0.65rem;
   line-height: 1.5;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.35rem;
 }
 
 .court-legend-row:last-child { margin-bottom: 0; }
 
 .court-legend-tag {
-  display: inline-block;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  width: 4.2rem;
+  padding-top: 0.15rem;
 }
 
 .court-rank-badge {
