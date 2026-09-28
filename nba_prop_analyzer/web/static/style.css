@@ -1030,7 +1030,7 @@ a.blog-list-item p:last-child {
 
 .edge-table th {
   text-align: left;
-  padding: 0 0.6rem 0.6rem;
+  padding: 0 0.85rem 0.75rem;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -1043,9 +1043,9 @@ a.blog-list-item p:last-child {
 .edge-table th.num, .edge-table td.num { text-align: right; font-family: var(--font-mono); }
 
 .edge-table td {
-  padding: 0.7rem 0.6rem;
+  padding: 1.1rem 0.85rem;
   border-bottom: 1px solid var(--card-border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .edge-table tr:last-child td { border-bottom: none; }
@@ -1094,11 +1094,22 @@ a.blog-list-item p:last-child {
   white-space: nowrap;
 }
 
+.hit-value { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
 .hit-value.hit-strong { color: var(--green); }
 .hit-value.hit-mid { color: var(--text); }
 .hit-value.hit-weak { color: var(--red); }
-.hit-value .hit-pct { font-weight: 600; }
-.hit-value .hit-frac { color: var(--text-muted); font-size: 0.8em; }
+.hit-value .hit-pct { font-weight: 700; font-size: 1rem; }
+.hit-value .hit-frac { color: var(--text-muted); font-size: 0.72rem; }
+
+.matchup-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
+.matchup-prop {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.matchup-opp { font-size: 0.9rem; color: var(--text); white-space: nowrap; }
 
 .edge-note {
   font-size: 0.8rem;

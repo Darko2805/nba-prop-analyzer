@@ -391,13 +391,21 @@
                 </div>
               </div>
             </td>
-            <td class="num">{{ edge.prop_unit }} · {{ 'vs' if edge.is_home else '@' }} {{ edge.opponent }}</td>
+            <td class="num">
+              <div class="matchup-cell">
+                <span class="matchup-prop">{{ edge.prop_unit }}</span>
+                <span class="matchup-opp">{{ 'vs' if edge.is_home else '@' }} {{ edge.opponent }}</span>
+              </div>
+            </td>
             <td class="num">{{ edge.line }}</td>
             <td class="num"><span class="edge-value {{ edge.lean_direction }}">{{ "%+.1f"|format(edge.edge) }}</span></td>
             <td class="num">{{ edge.l10_avg if edge.l10_avg is not none else '—' }}</td>
             <td class="num">
               {% if edge.l10_hit_pct is not none %}
-              <span class="hit-value {{ 'hit-strong' if edge.l10_hit_pct >= 60 else ('hit-weak' if edge.l10_hit_pct <= 40 else 'hit-mid') }}"><span class="hit-frac">{{ edge.l10_hits }}/10 ·</span> <span class="hit-pct">{{ edge.l10_hit_pct }}%</span></span>
+              <div class="hit-value {{ 'hit-strong' if edge.l10_hit_pct >= 60 else ('hit-weak' if edge.l10_hit_pct <= 40 else 'hit-mid') }}">
+                <span class="hit-frac">{{ edge.l10_hits }}/10</span>
+                <span class="hit-pct">{{ edge.l10_hit_pct }}%</span>
+              </div>
               {% else %}—{% endif %}
             </td>
           </tr>
