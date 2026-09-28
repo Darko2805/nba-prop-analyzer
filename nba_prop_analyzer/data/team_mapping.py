@@ -208,13 +208,20 @@ def fetch_three_in_four_teams(today=None) -> set:
 
 def _fetch_team_games_on(date) -> dict:
     """
-    Like _fetch_teams_playing_on, but keyed by team abbreviation with
-    whether that game was home or away. A rolling fatigue read needs to
-    weight a team's recent road load, not just how many games it's
-    played, so plain "did they play" isn't enough here.
+    Like _fetch_teams_playing_on, but keyed by team abbreviation with a
+    dict of {home_away, ot_periods, margin} for that game. A rolling
+    fatigue read needs more than "did they play": a team's recent road
+    load, how many extra (overtime) minutes they've actually logged, and
+    how many games went down to the wire -- plain "did they play" isn't
+    enough here.
+
+    ot_periods is 0 for a regulation game -- ESPN's own status.period is
+    4 for regulation, 5+ for each overtime played (verified against a
+    real OT game: PHI 128 @ HOU 122 on 2026-01-10 returned period=5).
+    margin is the final score gap (0 if the game hasn't finished yet).
     """
     date_str = date.strftime("%Y%m%d")
-    cache_key = f"espn_scoreboard_homeaway_{date_str}"
+    cache_key = f"espn_scoreboard_load_{date_str}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -227,12 +234,28 @@ def _fetch_team_games_on(date) -> dict:
         )
         resp.raise_for_status()
         for event in resp.json().get("events", []):
-            competitors = (event.get("competitions") or [{}])[0].get("competitors", [])
+            competition = (event.get("competitions") or [{}])[0]
+            competitors = competition.get("competitors", [])
+            period = (event.get("status") or {}).get("period", 0)
+            ot_periods = max(0, period - 4)
+
+            scores = []
+            for c in competitors:
+                try:
+                    scores.append(int(c.get("score", 0)))
+                except (TypeError, ValueError):
+                    scores.append(0)
+            margin = abs(scores[0] - scores[1]) if len(scores) == 2 else 0
+
             for c in competitors:
                 raw_abbr = (c.get("team") or {}).get("abbreviation", "")
                 abbr = normalize_team(raw_abbr) if raw_abbr else None
                 if abbr:
-                    games[abbr] = c.get("homeAway", "")
+                    games[abbr] = {
+                        "home_away": c.get("homeAway", ""),
+                        "ot_periods": ot_periods,
+                        "margin": margin,
+                    }
     except Exception:
         games = {}
 
@@ -243,10 +266,20 @@ def _fetch_team_games_on(date) -> dict:
 def fetch_schedule_load(today=None, window_days: int = 14) -> dict:
     """
     Per-team rolling schedule load over the trailing `window_days` days
-    (not including today): games played, how many were on the road, and
-    how many were back-to-backs (zero rest before that game). This is
-    the raw two-week workload behind a fatigue read, not just tonight's
-    single rest day.
+    (not including today): games played, how many were on the road, how
+    many were back-to-backs (zero rest before that game), how many extra
+    (overtime) minutes they've logged, and how many games came down to
+    a close finish. This is the raw two-week workload behind a fatigue
+    read, not just tonight's single rest day.
+
+    extra_minutes is overtime-only (each OT period is 5 real minutes) --
+    not an estimate of total minutes played, just the cumulative extra
+    time a team's rotation has had to grind through beyond a normal
+    48-minute game. close_games counts games decided by 6 points or
+    fewer, on the idea that a string of nip-and-tuck finishes wears on a
+    team's rotation (extended high-leverage possessions, heavier
+    fourth-quarter minutes for starters) even when the final margin
+    doesn't show it.
 
     Always measured as "the `window_days` days before `today`" rather
     than a stored date range, so calling this again tomorrow shifts the
@@ -260,16 +293,22 @@ def fetch_schedule_load(today=None, window_days: int = 14) -> dict:
         today = _datetime.date.today()
 
     day_teams: dict = {}
-    load: dict = defaultdict(lambda: {"games": 0, "away_games": 0, "back_to_backs": 0})
+    load: dict = defaultdict(lambda: {
+        "games": 0, "away_games": 0, "back_to_backs": 0,
+        "extra_minutes": 0, "close_games": 0,
+    })
 
     for days_back in range(1, window_days + 1):
         day = today - _datetime.timedelta(days=days_back)
         games_on_day = _fetch_team_games_on(day)
         day_teams[day] = games_on_day
-        for abbr, home_away in games_on_day.items():
+        for abbr, info in games_on_day.items():
             load[abbr]["games"] += 1
-            if home_away == "away":
+            if info["home_away"] == "away":
                 load[abbr]["away_games"] += 1
+            load[abbr]["extra_minutes"] += info["ot_periods"] * 5
+            if 0 < info["margin"] <= 6:
+                load[abbr]["close_games"] += 1
 
     for days_back in range(1, window_days):
         day = today - _datetime.timedelta(days=days_back)

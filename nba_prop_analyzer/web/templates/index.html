@@ -494,7 +494,7 @@
             <span class="fatigue-vs">vs {{ t.opponent }}</span>
           </div>
           <div class="fatigue-meter"><div class="fatigue-meter-fill" style="width: {{ (t.fatigue_score * 100)|round|int }}%"></div></div>
-          <div class="fatigue-detail">{{ t.games }} gm · {{ t.away_games }} away · {{ t.back_to_backs }} B2B</div>
+          <div class="fatigue-detail">{{ t.games }} gm · {{ t.away_games }} away · {{ t.back_to_backs }} B2B{% if t.extra_minutes %} · {{ t.extra_minutes }} min OT{% endif %}{% if t.close_games %} · {{ t.close_games }} close{% endif %}</div>
         </div>
         {% endfor %}
       </div>

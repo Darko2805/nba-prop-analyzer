@@ -239,24 +239,25 @@ def annotate_schedule_fatigue(games_today: list) -> list:
 # while is_preview is True, and always shown under the same PREVIEW tag as
 # the rest of the demo schedule -- never presented as real.
 _SAMPLE_FATIGUE_LOAD = {
-    "BOS": {"games": 8, "away_games": 6, "back_to_backs": 3},
-    "LAL": {"games": 6, "away_games": 2, "back_to_backs": 1},
-    "DEN": {"games": 5, "away_games": 1, "back_to_backs": 0},
-    "GSW": {"games": 7, "away_games": 4, "back_to_backs": 2},
-    "MIA": {"games": 6, "away_games": 5, "back_to_backs": 1},
-    "OKC": {"games": 5, "away_games": 2, "back_to_backs": 0},
+    "BOS": {"games": 8, "away_games": 6, "back_to_backs": 3, "extra_minutes": 10, "close_games": 4},
+    "LAL": {"games": 6, "away_games": 2, "back_to_backs": 1, "extra_minutes": 5, "close_games": 2},
+    "DEN": {"games": 5, "away_games": 1, "back_to_backs": 0, "extra_minutes": 0, "close_games": 1},
+    "GSW": {"games": 7, "away_games": 4, "back_to_backs": 2, "extra_minutes": 5, "close_games": 3},
+    "MIA": {"games": 6, "away_games": 5, "back_to_backs": 1, "extra_minutes": 0, "close_games": 2},
+    "OKC": {"games": 5, "away_games": 2, "back_to_backs": 0, "extra_minutes": 0, "close_games": 1},
 }
 
 
 def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int = 6) -> list:
     """
     Ranks tonight's playing teams by their rolling two-week schedule
-    load -- games, road games, and back-to-backs over the last 14 days,
-    weighted toward road load (see fatigue_watch.compute_fatigue_scores)
-    -- for the homepage's "Fatigue Watch" preview. This looks at the
-    last two weeks; annotate_schedule_fatigue() above only flags
-    tonight's single back-to-back/3-in-4 status, a different, narrower
-    signal shown on the schedule cards.
+    load -- games, road games, back-to-backs, overtime minutes, and
+    close-game count over the last 14 days, weighted toward road load
+    (see fatigue_watch.compute_fatigue_scores) -- for the homepage's
+    "Fatigue Watch" preview. This looks at the last two weeks;
+    annotate_schedule_fatigue() above only flags tonight's single
+    back-to-back/3-in-4 status, a different, narrower signal shown on
+    the schedule cards.
 
     The window is always "the 14 days before today," so this updates on
     its own every day as the calendar moves -- nothing here stores or
