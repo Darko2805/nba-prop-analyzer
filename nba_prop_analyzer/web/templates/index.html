@@ -272,23 +272,29 @@
           <!-- basketball markers (top layer): colored by RANK, not raw gap size, so the
                toughest zone always reads unambiguously red even when its gap is small.
                Each ball also carries a +/- sign matching the gap direction, so the
-               takeaway doesn't depend on color alone. -->
+               takeaway doesn't depend on color alone. Positioned at each zone's real
+               radial distance from the hoop (245,396) but staggered left/right by angle
+               instead of stacked on one vertical line -- purely a layout choice for a
+               more natural, shot-chart-like look; there's no real data on which SIDE of
+               a zone is more exploitable (checked: no corner/wing/left-right split
+               exists anywhere in this app's data), so the angle carries no claim beyond
+               "not directly on top of the others." -->
           <g id="ballAtRim" class="zone-ball-marker" transform="translate(245,383)">
             <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
             <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
-          <g id="ballShortMid" class="zone-ball-marker" transform="translate(245,338)">
+          <g id="ballShortMid" class="zone-ball-marker" transform="translate(203,346)">
             <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
             <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
-          <g id="ballLongMid" class="zone-ball-marker" transform="translate(245,248)">
+          <g id="ballLongMid" class="zone-ball-marker" transform="translate(331,273)">
             <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
             <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
-          <g id="ballThree" class="zone-ball-marker" transform="translate(245,115)">
+          <g id="ballThree" class="zone-ball-marker" transform="translate(61,212)">
             <use href="#basketballIcon" x="-14" y="-14" width="28" height="28"></use>
             <text class="zone-ball-sign" text-anchor="middle" dominant-baseline="central"></text>
             <text class="zone-ball-label" text-anchor="middle" y="30"></text>
