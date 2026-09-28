@@ -223,7 +223,13 @@ def upsert_profile(user_id: str, email: str, name: str) -> dict:
     if resp.status_code >= 400:
         raise AuthError(f"Couldn't save your profile ({resp.status_code}): {resp.text}")
     rows = resp.json()
-    return rows[0] if rows else {"id": user_id, "email": email, "name": name, "tier": "free"}
+    if not rows:
+        # A 2xx with no body means Supabase didn't hand back the row we
+        # asked "return=representation" for -- don't fabricate one and let
+        # the caller log someone in on a guess (a guessed "tier": "free"
+        # could silently mask a real paid row that just wasn't returned).
+        raise AuthError("Couldn't confirm your profile was saved -- please try again.")
+    return rows[0]
 
 
 def get_profile(user_id: str) -> dict:
