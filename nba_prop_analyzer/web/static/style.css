@@ -496,20 +496,12 @@ body {
 .court-wrap {
   display: flex;
   gap: 1.5rem;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: wrap;
 }
 
-.court-svg-col {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
 .court-svg {
-  width: 340px;
-  max-width: 100%;
+  width: 300px;
   min-width: 220px;
   flex-shrink: 0;
 }

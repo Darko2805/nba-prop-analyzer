@@ -213,7 +213,6 @@
              19ft with a 6ft-radius circle, 16ft-wide lane, 4ft restricted-area arc,
              and a true 3PT arc (23.75ft, 22ft in the corners) with straight corner
              segments rather than a single circle. -->
-        <div class="court-svg-col">
         <svg viewBox="0 0 490 465" class="court-svg" id="courtSvg">
           <defs>
             <!-- basketball glyph: body filled in currentColor (set per-zone by JS) with
@@ -301,7 +300,6 @@
             <text class="zone-ball-label" text-anchor="middle" y="30"></text>
           </g>
         </svg>
-        </div>
         <div class="court-legend" id="courtLegend"></div>
       </div>
       <p class="court-hint">Drawn to real NBA half-court proportions. Ranked from the opponent's biggest weakness to their toughest coverage — each zone is labeled and colored green-to-red by that rank (green = best exploit, red = toughest coverage), with a +/- sign matching the gap direction, and how solid it looks reflects how often the player actually shoots from there. The logo at top is the analyzed player's own team.</p>
@@ -882,6 +880,44 @@ const RANK_BADGES = [
   { text: 'TOUGHEST', cls: 'worst' },
 ];
 
+// Real team primary colors span the full brand-color range, and quite a few
+// (Nuggets navy #0E2240, Nets black #000000, Bucks green #00471B, etc. --
+// 17 of 30 teams sit under 35% HSL lightness) are barely legible as text on
+// this dark background. Decorative uses (badge stroke/fill, the court wash)
+// stay true to the raw brand color since low contrast doesn't matter there,
+// but text needs a lightness floor -- raised in HSL space so the hue/brand
+// identity is preserved, just brightened enough to read clearly.
+function legibleTextColor(hex, minLightnessPct = 50) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  if (l * 100 >= minLightnessPct) return hex;
+  const l2 = minLightnessPct / 100;
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l2 < 0.5 ? l2 * (1 + s) : l2 + s - l2 * s;
+  const p = 2 * l2 - q;
+  const toHex = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+  return `#${toHex(hue2rgb(p, q, h + 1 / 3))}${toHex(hue2rgb(p, q, h))}${toHex(hue2rgb(p, q, h - 1 / 3))}`;
+}
+
 function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
   // Team badge: the real logo of the analyzed player's own team, hotlinked
   // (never stored by us) from a public logo CDN, on a tinted disc in the
@@ -898,7 +934,7 @@ function renderCourt(zones, teamAbbr, teamColor, teamLogo, teamName) {
       badgeLogo.setAttribute('href', teamLogo);
     }
     teamLabel.textContent = teamName || teamAbbr;
-    teamLabel.style.color = teamColor;
+    teamLabel.style.color = legibleTextColor(teamColor);
     teamWash.setAttribute('fill', teamColor);
     teamWash.style.fillOpacity = '0.16';
   } else {
