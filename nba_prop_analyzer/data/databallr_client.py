@@ -32,7 +32,9 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
     if cached is not None:
         return cached
 
-    params = {"year": year}
+    # The v1 endpoint defaults to leverage=clutch (clutch-time-only stats),
+    # which would silently skew every team figure -- ask for the full season.
+    params = {"season": year, "leverage": "all"}
     resp = requests.get(DATABALLR_TEAM_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
     resp.raise_for_status()
     raw = resp.json()
