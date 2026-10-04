@@ -3,6 +3,7 @@ from ..config import CURRENT_SEASON_YEAR, DATABALLR_TEAM_URL, REQUEST_HEADERS
 from ..cache import cache
 from .models import TeamProfile, OpponentDefense
 from .team_mapping import normalize_team
+from . import snapshot_store
 
 
 def _safe_float(data: dict, key: str, default: float = 0.0) -> float:
@@ -25,6 +26,29 @@ def _safe_int(data: dict, key: str, default: int = 0) -> int:
         return default
 
 
+def fetch_team_stats_raw(year: int = CURRENT_SEASON_YEAR) -> dict:
+    """
+    Raw databallr team/opponent payload for a season, validated before it
+    is trusted. Also what the daily refresh snapshots as the fallback.
+
+    The v1 endpoint defaults to leverage=clutch (clutch-time-only stats) and
+    has been seen ignoring an unsupported leverage value, so the response is
+    checked rather than assumed: wrong leverage or a short team list raises
+    instead of quietly skewing every team figure.
+    """
+    params = {"season": year, "leverage": "all"}
+    resp = requests.get(DATABALLR_TEAM_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
+    resp.raise_for_status()
+    raw = resp.json()
+    if raw.get("leverage") != "all":
+        raise ValueError(f"databallr returned leverage={raw.get('leverage')!r}, expected 'all'")
+    for side in ("team", "opponent"):
+        n = len(raw.get(side, {}).get("team_data", []))
+        if n < 25:
+            raise ValueError(f"databallr returned only {n} {side} rows")
+    return raw
+
+
 def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
     dict[str, TeamProfile], dict[str, OpponentDefense], dict
 ]:
@@ -32,12 +56,13 @@ def fetch_team_data(year: int = CURRENT_SEASON_YEAR) -> tuple[
     if cached is not None:
         return cached
 
-    # The v1 endpoint defaults to leverage=clutch (clutch-time-only stats),
-    # which would silently skew every team figure -- ask for the full season.
-    params = {"season": year, "leverage": "all"}
-    resp = requests.get(DATABALLR_TEAM_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
-    resp.raise_for_status()
-    raw = resp.json()
+    try:
+        raw = fetch_team_stats_raw(year)
+    except Exception as e:
+        raw = snapshot_store.load_team_stats()
+        if not raw:
+            raise
+        print(f"  Live team stats fetch failed ({e}); using the committed snapshot")
 
     team_data = raw.get("team", {}).get("team_data", [])
     opp_data = raw.get("opponent", {}).get("team_data", [])

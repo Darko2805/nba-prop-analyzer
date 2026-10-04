@@ -23,6 +23,7 @@ from nba_prop_analyzer.data.bbref_league_stats import (
 )
 from nba_prop_analyzer.data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile
 from nba_prop_analyzer.data import snapshot_store
+from nba_prop_analyzer.data.databallr_client import fetch_team_stats_raw
 
 MIN_GAMES = 5
 MIN_MPG = 12.0
@@ -38,6 +39,13 @@ def main():
     zone_defense = fetch_opponent_zone_defense()
     print(f"  {len(zone_defense)} teams")
     snapshot_store.save_opponent_zone_defense(zone_defense)
+
+    print("Fetching team stats (databallr) for the fallback snapshot...")
+    try:
+        snapshot_store.save_team_stats(fetch_team_stats_raw())
+        print("  saved")
+    except Exception as e:
+        print(f"  Team stats fetch failed ({e}), keeping the previous snapshot")
 
     print("Fetching today's game schedule...")
     try:

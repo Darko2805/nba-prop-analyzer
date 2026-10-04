@@ -51,6 +51,14 @@ def load_players() -> list[PlayerStats]:
     return [PlayerStats(**p) for p in _load_json("players.json", [])]
 
 
+def save_team_stats(raw: dict) -> None:
+    _save_json("team_stats.json", raw)
+
+
+def load_team_stats() -> dict:
+    return _load_json("team_stats.json", {})
+
+
 def save_opponent_zone_defense(data: dict) -> None:
     _save_json("opponent_zone_defense.json", data)
 
