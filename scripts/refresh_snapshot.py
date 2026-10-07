@@ -9,9 +9,19 @@ per-player game logs and shot-zone profiles for active rotation players,
 and writes it all to nba_prop_analyzer/data/snapshot/. Commit + push after
 running; Render's Auto-Deploy (On Commit) redeploys automatically.
 
-Rate-limited to 1 request per 3 seconds (bbref_scraper._rate_limit), so a
-full run over ~300-400 rotation players takes roughly 30-40 minutes.
+Rate-limited to 1 request per 3 seconds (bbref_scraper._rate_limit), so the
+per-player part over ~300-400 rotation players takes roughly 30-40 minutes.
+
+That slow part is separable so a daily run can publish the fast data first:
+  --fast        bulk player/team stats, zone defense, team stats, today's
+                schedule (about a minute) -- enough to keep rosters, teams
+                and the schedule current even if a long run is interrupted.
+  --logs-only   per-player game logs + shot zones for the players already in
+                the snapshot (the 30-40 minute part).
+  (no flag)     both, in that order.
+Each mode writes only the files it owns, so commit + push after each.
 """
+import argparse
 import datetime
 import os
 import sys
@@ -28,17 +38,30 @@ from nba_prop_analyzer.data.databallr_client import fetch_team_stats_raw
 MIN_GAMES = 5
 MIN_MPG = 12.0
 
+# A bulk fetch that comes back nearly empty (a site error page, or the first
+# day of a new season before many games exist) must never replace good data.
+MIN_PLAYERS_TO_ACCEPT = 150
+MIN_TEAMS_TO_ACCEPT = 25
 
-def main():
+
+def refresh_fast() -> dict:
     print("Fetching bulk player per-game stats...")
     players = fetch_all_players_per_game()
     print(f"  {len(players)} players")
+    if len(players) < MIN_PLAYERS_TO_ACCEPT:
+        raise SystemExit(
+            f"Only {len(players)} players returned (need {MIN_PLAYERS_TO_ACCEPT}+) -- "
+            "keeping the previous snapshot untouched. Nothing to commit."
+        )
     snapshot_store.save_players(players)
 
     print("Fetching opponent zone defense...")
     zone_defense = fetch_opponent_zone_defense()
     print(f"  {len(zone_defense)} teams")
-    snapshot_store.save_opponent_zone_defense(zone_defense)
+    if len(zone_defense) >= MIN_TEAMS_TO_ACCEPT:
+        snapshot_store.save_opponent_zone_defense(zone_defense)
+    else:
+        print("  too few teams returned, keeping the previous zone-defense snapshot")
 
     print("Fetching team stats (databallr) for the fallback snapshot...")
     try:
@@ -55,6 +78,22 @@ def main():
         print(f"  Today's games fetch failed ({e}), continuing with none")
         games_today = []
     snapshot_store.save_games_today(games_today)
+
+    snapshot_store.save_meta({
+        **snapshot_store.load_meta(),
+        "refreshed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "player_count": len(players),
+        "games_today_count": len(games_today),
+    })
+    print("Fast refresh complete.")
+    return {"players": players}
+
+
+def refresh_logs(players=None) -> None:
+    if players is None:
+        players = snapshot_store.load_players()
+    if not players:
+        raise SystemExit("No players in the snapshot -- run --fast first.")
 
     rotation_players = [p for p in players if p.games_played >= MIN_GAMES and p.mpg >= MIN_MPG]
     print(f"Refreshing game logs + shot zones for {len(rotation_players)} rotation players "
@@ -84,17 +123,31 @@ def main():
     snapshot_store.save_shot_zones(shot_zones)
 
     snapshot_store.save_meta({
-        "refreshed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "player_count": len(players),
+        **snapshot_store.load_meta(),
+        "logs_refreshed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "rotation_player_count": len(rotation_players),
         "game_logs_count": len(game_logs),
         "shot_zones_count": len(shot_zones),
-        "games_today_count": len(games_today),
         "fetch_failures": failures,
     })
 
     print(f"Snapshot refresh complete. {len(game_logs)} players with game logs, "
           f"{len(shot_zones)} with shot zones, {failures} fetch failures.")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--fast", action="store_true", help="bulk stats + schedule only")
+    mode.add_argument("--logs-only", action="store_true", help="per-player game logs + shot zones only")
+    args = parser.parse_args()
+
+    if args.logs_only:
+        refresh_logs()
+    elif args.fast:
+        refresh_fast()
+    else:
+        refresh_logs(refresh_fast()["players"])
 
 
 if __name__ == "__main__":

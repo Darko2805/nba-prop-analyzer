@@ -483,6 +483,20 @@ def proxied_image(kind, key):
     return resp
 
 
+@app.route("/api/data-version")
+def data_version():
+    # Lets the daily refresh confirm a deploy picked up the new snapshot
+    # (and doubles as a cheap health/freshness check).
+    meta = snapshot_store.load_meta()
+    resp = jsonify({
+        "refreshed_at": meta.get("refreshed_at"),
+        "logs_refreshed_at": meta.get("logs_refreshed_at"),
+        "games_today": meta.get("games_today_count"),
+    })
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/about")
 def about():
     return render_template("about.html")

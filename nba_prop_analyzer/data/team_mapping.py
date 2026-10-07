@@ -88,9 +88,18 @@ def team_logo_url(team_abbr: str) -> str | None:
     return f"/img/team/{slug}.png" if slug else None
 
 
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
 def _normalize_for_match(name: str) -> str:
+    """Diacritic/case-insensitive, and ignores a trailing generational suffix
+    (ESPN says "Jimmy Butler III", basketball-reference says "Jimmy Butler")."""
     nfkd = unicodedata.normalize("NFKD", name)
-    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+    plain = "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+    parts = plain.replace(".", "").split()
+    if len(parts) > 2 and parts[-1] in _NAME_SUFFIXES:
+        parts = parts[:-1]
+    return " ".join(parts)
 
 
 def _espn_roster(team_abbr: str) -> list[dict]:
@@ -126,7 +135,38 @@ def find_espn_player_id(player_name: str, team_abbr: str) -> str | None:
     for athlete in _espn_roster(team_abbr):
         if _normalize_for_match(athlete.get("fullName", "")) == target:
             return athlete.get("id")
-    return None
+    return _espn_search_player_id(target)
+
+
+def _espn_search_player_id(normalized_name: str) -> str | None:
+    """
+    Fallback for players whose team in our (season-stats) data no longer matches
+    their live ESPN roster -- anyone traded or signed in the off-season, since
+    our snapshot's team is the one they played for last season. One ESPN search
+    request by name instead of fetching all 30 rosters. Misses are cached too
+    ("" marker) so an unknown name isn't re-queried on every page load.
+    """
+    cache_key = f"espn_player_search_{normalized_name}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached or None
+    player_id = ""
+    try:
+        resp = requests.get(
+            "https://site.web.api.espn.com/apis/common/v3/search",
+            params={"query": normalized_name, "limit": 5, "type": "player",
+                    "sport": "basketball", "league": "nba"},
+            timeout=6,
+        )
+        resp.raise_for_status()
+        for item in resp.json().get("items", []):
+            if item.get("league") == "nba" and _normalize_for_match(item.get("displayName", "")) == normalized_name:
+                player_id = str(item.get("id", ""))
+                break
+    except Exception:
+        player_id = ""
+    cache.set(cache_key, player_id)
+    return player_id or None
 
 
 def espn_headshot_url(espn_player_id: str) -> str:
