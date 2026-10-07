@@ -1,4 +1,15 @@
-CURRENT_SEASON_YEAR = 2026
+# Seasons are named by the year they end in (2026 = 2025-26). The prior
+# season is complete and static; the current one fills in game by game.
+CURRENT_SEASON_YEAR = 2027
+PRIOR_SEASON_YEAR = 2026
+
+# Early-season blend: weight on the current season = games / (games + K), so
+# the new season earns trust continuously as it accumulates (K games = half
+# weight) instead of switching at a cutoff. Teams get a larger K than players
+# because rosters turn over, so a team's own early games say less than its
+# players' do.
+PLAYER_BLEND_K = 10
+TEAM_BLEND_K = 15
 DATABALLR_TEAM_URL = "https://api.databallr.com/v1/nba/teams/stats"
 ESPN_OPPONENT_STATS_URL = "https://www.espn.com/nba/stats/team/_/view/opponent"
 ESPN_TEAMS_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"

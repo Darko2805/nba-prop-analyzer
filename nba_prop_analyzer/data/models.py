@@ -36,6 +36,9 @@ class PlayerStats:
     fgm_pg: float = 0.0
     fga_pg: float = 0.0
     topg: float = 0.0
+    # Share of these numbers that comes from the current season (the rest is
+    # last season's); set by season_blend, 0.0 until the new season has games.
+    blend_weight: float = 0.0
 
     @property
     def pra(self) -> float:

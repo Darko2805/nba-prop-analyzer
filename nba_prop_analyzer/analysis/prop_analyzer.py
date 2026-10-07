@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import time
 
-from ..config import COMBO_PROP_TYPES
+from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
@@ -8,6 +10,7 @@ from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team, fetch_current_teams, current_team_of, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
+from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
@@ -26,34 +29,45 @@ class PropAnalyzer:
         self.opponent_defenses = {}
         self.league_avg = {}
         self.tr_stats = {}
+        self.tr_stats_prev = {}
+        self.team_weights = {}
         self._teams_checked_at = 0.0
 
     def load_data(self):
         print("  Loading player stats snapshot...")
-        self.players = snapshot_store.load_players()
-        if self.players:
-            print(f"  Loaded {len(self.players)} players from snapshot")
-        else:
+        current_players = snapshot_store.load_players()
+        prior_players = snapshot_store.load_players(prev=True)
+        if not current_players and not prior_players:
             print("  No snapshot found, fetching player stats live from basketball-reference...")
             try:
-                self.players = fetch_all_players_per_game()
-                print(f"  Loaded {len(self.players)} players")
+                prior_players = fetch_all_players_per_game(PRIOR_SEASON_YEAR)
+                current_players = fetch_all_players_per_game(CURRENT_SEASON_YEAR)
             except Exception as e:
                 print(f"  Player stats fetch failed ({e}), continuing with no player data")
-                self.players = []
+        self.players = self._blend_players(current_players, prior_players)
+        if self.players:
+            print(f"  Loaded {len(self.players)} players "
+                  f"({len(current_players)} with new-season games, blended with last season)")
 
         print("  Fetching team stats from databallr...")
         try:
-            self.team_profiles, self.opponent_defenses, self.league_avg = fetch_team_data()
+            self.team_profiles, self.opponent_defenses, self.league_avg, self.team_weights = fetch_team_data()
             print(f"  Loaded {len(self.team_profiles)} teams")
         except Exception as e:
             print(f"  Team stats fetch failed ({e}), continuing with no team data")
-            self.team_profiles, self.opponent_defenses, self.league_avg = {}, {}, {}
+            self.team_profiles, self.opponent_defenses, self.league_avg, self.team_weights = {}, {}, {}, {}
 
         print("  Fetching opponent stats from TeamRankings...")
+        self.tr_stats_prev = snapshot_store.load_teamrankings(prev=True)
         try:
-            self.tr_stats = fetch_teamrankings_opponent_stats()
-            print(f"  Loaded TeamRankings data for {len(self.tr_stats)} teams")
+            tr_stats, tr_label = fetch_teamrankings_opponent_stats()
+            # TeamRankings names a season by the year it starts in, and its
+            # "current" column is last season's until the new one begins.
+            self.tr_stats = tr_stats if tr_label == str(CURRENT_SEASON_YEAR - 1) else {}
+            if not self.tr_stats_prev and tr_label == str(PRIOR_SEASON_YEAR - 1):
+                self.tr_stats_prev = tr_stats
+            print(f"  Loaded TeamRankings data for {len(tr_stats)} teams (season column {tr_label!r}, "
+                  f"{'new season' if self.tr_stats else 'last season, used as the prior'})")
         except Exception as e:
             print(f"  TeamRankings scraping failed ({e}), continuing with databallr only")
             self.tr_stats = {}
@@ -61,17 +75,18 @@ class PropAnalyzer:
         self._merge_teamrankings_data()
 
         print("  Loading opponent zone defense snapshot...")
-        zone_defense = snapshot_store.load_opponent_zone_defense()
-        if zone_defense:
-            print(f"  Loaded zone defense for {len(zone_defense)} teams from snapshot")
-        else:
+        zone_current = snapshot_store.load_opponent_zone_defense()
+        zone_prior = snapshot_store.load_opponent_zone_defense(prev=True)
+        if not zone_current and not zone_prior:
             print("  No snapshot found, fetching opponent zone defense live from basketball-reference...")
             try:
-                zone_defense = fetch_opponent_zone_defense()
+                zone_prior = fetch_opponent_zone_defense(PRIOR_SEASON_YEAR)
+                zone_current = fetch_opponent_zone_defense(CURRENT_SEASON_YEAR)
             except Exception as e:
                 print(f"  Opponent zone defense fetch failed ({e}), short/long mid-range gaps will use league average")
-                zone_defense = {}
-        self._merge_bbref_zone_defense(zone_defense)
+        else:
+            print(f"  Loaded zone defense for {len(zone_current or zone_prior)} teams from snapshot")
+        self._merge_bbref_zone_defense(zone_current, zone_prior)
 
         # Raw bbref team codes (e.g. "BRK") normalize to our canonical abbreviations.
         for p in self.players:
@@ -109,41 +124,86 @@ class PropAnalyzer:
         """False when a required upstream data source failed to load."""
         return bool(self.players) and bool(self.team_profiles)
 
-    def _merge_bbref_zone_defense(self, zone_defense: dict) -> None:
+    def _blend_players(self, current: list, prior: list) -> list:
+        """Each player's numbers mix this season with last by games/(games+K);
+        a player with no new-season games is exactly last season's numbers."""
+        by_name = {}
+        for p in prior:
+            p.blend_weight = 0.0
+            by_name[p.name] = p
+        for c in current:
+            prev = by_name.get(c.name)
+            w = blend_weight(c.games_played, PLAYER_BLEND_K) if prev else 1.0
+            blended = blend_dataclass(c, prev, w)
+            blended.blend_weight = w
+            by_name[c.name] = blended
+        return list(by_name.values())
+
+    def _merge_bbref_zone_defense(self, current: dict, prior: dict) -> None:
         """Fill in opponent short/long mid-range defense (at-rim and 3PT already come from databallr/TeamRankings)."""
-        for abbr, zone in zone_defense.items():
+        for abbr in set(current) | set(prior):
             opp = self.opponent_defenses.get(abbr)
             if opp is None:
                 continue
+            zone = blend_numbers(current.get(abbr, {}), prior.get(abbr, {}), self.team_weights.get(abbr, 0.0))
             opp.opp_short_mid_freq = zone["short_mid_freq"]
             opp.opp_short_mid_acc = zone["short_mid_acc"]
             opp.opp_long_mid_freq = zone["long_mid_freq"]
             opp.opp_long_mid_acc = zone["long_mid_acc"]
 
     def _merge_teamrankings_data(self):
-        """Overwrite opponent defense fields with TeamRankings values (more accurate current-season data)."""
-        for abbr, tr in self.tr_stats.items():
-            if abbr not in self.opponent_defenses:
+        """Overwrite opponent defense fields with TeamRankings values (more accurate than databallr), mixing the
+        new season's with last season's by the team's games-played weight; with no new-season games it is
+        exactly last season's TeamRankings numbers."""
+        fields = ("opp_ppg", "opp_3pm", "opp_3pa", "opp_3p_pct", "opp_rpg", "opp_apg", "opp_fta", "opp_ftm", "opp_efg_pct")
+        for abbr in set(self.tr_stats) | set(self.tr_stats_prev):
+            opp = self.opponent_defenses.get(abbr)
+            if opp is None:
                 continue
-            opp = self.opponent_defenses[abbr]
-            if tr.get("opp_ppg"):
-                opp.opp_ppg = tr["opp_ppg"]
-            if tr.get("opp_3pm"):
-                opp.opp_3pm = tr["opp_3pm"]
-            if tr.get("opp_3pa"):
-                opp.opp_3pa = tr["opp_3pa"]
-            if tr.get("opp_3p_pct"):
-                opp.opp_3p_pct = tr["opp_3p_pct"]
-            if tr.get("opp_rpg"):
-                opp.opp_rpg = tr["opp_rpg"]
-            if tr.get("opp_apg"):
-                opp.opp_apg = tr["opp_apg"]
-            if tr.get("opp_fta"):
-                opp.opp_fta = tr["opp_fta"]
-            if tr.get("opp_ftm"):
-                opp.opp_ftm = tr["opp_ftm"]
-            if tr.get("opp_efg_pct"):
-                opp.opp_efg_pct = tr["opp_efg_pct"]
+            current = self.tr_stats.get(abbr, {})
+            prior = self.tr_stats_prev.get(abbr, {})
+            w = self.team_weights.get(abbr, 0.0) if prior else 1.0
+            for field in fields:
+                cv, pv = current.get(field), prior.get(field)
+                if cv and pv:
+                    value = w * cv + (1 - w) * pv
+                else:
+                    value = cv or pv
+                if value:
+                    setattr(opp, field, value)
+
+    def _shot_zone_for(self, player) -> dict | None:
+        """Shot-zone frequencies mixed across seasons by the player's own blend weight. Snapshots first
+        (what production relies on -- bbref blocks the host's IP), a live fetch of last season only as a
+        fallback for anyone not in the rotation snapshot; None leaves zeros so shot_zone.py falls back to
+        estimating from three_point_rate."""
+        current = snapshot_store.load_shot_zone(player.name)
+        prior = snapshot_store.load_shot_zone(player.name, prev=True)
+        if not current and not prior:
+            try:
+                prior = fetch_shot_zone_profile(player.name, PRIOR_SEASON_YEAR)
+            except Exception as e:
+                print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
+        if current and prior:
+            return blend_numbers(current, prior, player.blend_weight)
+        return current or prior or None
+
+    def _game_logs_for(self, player) -> list:
+        """Last season's games followed by this season's, oldest first, so recent form (L5/L10/trend), hit
+        rates and head-to-head history are meaningful from the first game of a new season."""
+        prior = snapshot_store.load_game_logs(player.name, prev=True)
+        current = snapshot_store.load_game_logs(player.name)
+        if prior is None and current is None:
+            print(f"  Fetching game logs from basketball-reference for {player.name}...")
+            try:
+                prior = fetch_game_logs(player.name, PRIOR_SEASON_YEAR)
+                current = fetch_game_logs(player.name)
+            except Exception as e:
+                print(f"  Game log fetch failed ({e}), using season averages")
+        logs = (prior or []) + (current or [])
+        if not logs:
+            print("  No game logs found (will use season averages)")
+        return logs
 
     def analyze_prop(
         self,
@@ -165,13 +225,7 @@ class PropAnalyzer:
         # bbref blocks Render's IP), live fetch as a fallback for anyone not in the
         # rotation-player snapshot. On failure, leave zeros — shot_zone.py falls
         # back to estimating from three_point_rate.
-        zone_profile = snapshot_store.load_shot_zone(player.name)
-        if not zone_profile:
-            try:
-                zone_profile = fetch_shot_zone_profile(player.name)
-            except Exception as e:
-                print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
-                zone_profile = None
+        zone_profile = self._shot_zone_for(player)
         if zone_profile:
             player.at_rim_freq = zone_profile["at_rim_freq"]
             player.short_mid_freq = zone_profile["short_mid_freq"]
@@ -199,20 +253,7 @@ class PropAnalyzer:
             set_manual_trend(player.name, trend_override)
 
         # Game logs: snapshot first, live fetch as a fallback (see shot-zone note above).
-        game_logs = snapshot_store.load_game_logs(player.name)
-        if game_logs is not None:
-            print(f"  Loaded {len(game_logs)} game logs from snapshot")
-        else:
-            print(f"  Fetching game logs from basketball-reference for {player.name}...")
-            game_logs = []
-            try:
-                game_logs = fetch_game_logs(player.name)
-                if game_logs:
-                    print(f"  Loaded {len(game_logs)} game logs")
-                else:
-                    print("  No game logs found (will use season averages)")
-            except Exception as e:
-                print(f"  Game log fetch failed ({e}), using season averages")
+        game_logs = self._game_logs_for(player)
 
         # Get game log values for variance and trend (combo types sum the two
         # component stats per game, giving real joint variance/trend rather

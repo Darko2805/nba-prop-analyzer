@@ -52,9 +52,12 @@ def _resolve_abbr(team_text: str) -> str:
     return abbr or ""
 
 
-def _fetch_stat_page(slug: str) -> dict[str, float]:
+def _fetch_stat_page(slug: str) -> tuple[dict[str, float], str]:
     """
-    Fetch one TeamRankings stat page and return {team_abbr: season_value}.
+    Fetch one TeamRankings stat page and return ({team_abbr: season_value},
+    season_label). The label is the table's season column header: TeamRankings
+    names a season by the year it STARTS in ("2025" = 2025-26), and the column
+    shows whichever season it currently treats as current.
     Uses the data-sort attribute on <td> elements for clean numeric values.
     """
     url = _BASE + slug
@@ -62,16 +65,19 @@ def _fetch_stat_page(slug: str) -> dict[str, float]:
         resp = requests.get(url, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
     except Exception:
-        return {}
+        return {}, ""
 
     soup = BeautifulSoup(resp.text, "html.parser")
     table = soup.find("table", class_=lambda c: c and "tr-table" in c)
     if not table:
-        return {}
+        return {}, ""
+
+    headers = [th.get_text(strip=True) for th in table.find_all("th")]
+    label = headers[2] if len(headers) > 2 else ""
 
     tbody = table.find("tbody")
     if not tbody:
-        return {}
+        return {}, label
 
     result = {}
     for row in tbody.find_all("tr"):
@@ -102,26 +108,31 @@ def _fetch_stat_page(slug: str) -> dict[str, float]:
 
         result[abbr] = val
 
-    return result
+    return result, label
 
 
-def fetch_teamrankings_opponent_stats() -> dict[str, dict]:
+def fetch_teamrankings_opponent_stats() -> tuple[dict[str, dict], str]:
     """
     Fetch all opponent defensive stats from TeamRankings for all 30 teams.
-    Returns dict keyed by team abbreviation with stat values.
+    Returns (stats keyed by team abbreviation, season_label) -- the label says
+    which season those numbers are (see _fetch_stat_page), so callers can tell
+    the new season's numbers from last season's.
     """
     cached = cache.get("teamrankings_opponent_stats")
     if cached is not None:
         return cached
 
     combined: dict[str, dict] = {}
+    label = ""
 
     for stat_key, slug in STAT_PAGES.items():
-        page_data = _fetch_stat_page(slug)
+        page_data, page_label = _fetch_stat_page(slug)
+        label = label or page_label
         for abbr, val in page_data.items():
             if abbr not in combined:
                 combined[abbr] = {}
             combined[abbr][stat_key] = val
 
-    cache.set("teamrankings_opponent_stats", combined)
-    return combined
+    result = (combined, label)
+    cache.set("teamrankings_opponent_stats", result)
+    return result
