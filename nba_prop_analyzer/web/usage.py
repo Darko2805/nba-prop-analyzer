@@ -5,7 +5,7 @@ checks the existing profiles.tier column, so flipping a user to "paid"
 manually in Supabase already unlocks unlimited use ahead of any future
 Stripe work).
 
-Anonymous usage is tracked per IP in `anon_usage` since there's no
+Anonymous usage is tracked per (hashed) IP in `anon_usage` since there's no
 account to key on; signed-up usage is tracked directly on `profiles`
 (usage_count/usage_batch_started_at) since it's a 1:1 relationship with
 a real user row. Both live in Supabase, not in-memory or on disk -- see
@@ -22,7 +22,10 @@ fingerprinting for anon tracking) for what's meant to be a friendly
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+import threading
 import requests
 from datetime import datetime, timezone, timedelta
 from flask import Request
@@ -31,6 +34,16 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 _REQUEST_TIMEOUT = 10
+
+# Anonymous visitors are keyed by a salted one-way hash of their IP, never the
+# IP itself -- the limit only needs "same visitor or not", and a stored raw IP
+# is personal data (GDPR) we'd then have to justify, secure and disclose.
+_IP_HASH_KEY = (
+    os.environ.get("USAGE_HASH_SALT")
+    or os.environ.get("FLASK_SECRET_KEY")
+    or "dev-only-usage-salt"
+).encode()
+ANON_RETENTION_DAYS = 7
 
 ANON_DAILY_LIMIT = 1
 FREE_TIER_BATCH_LIMIT = 5
@@ -47,16 +60,19 @@ def _headers() -> dict:
 
 def get_client_ip(req: Request) -> str:
     """
-    Render sits behind a reverse proxy, so request.remote_addr is the
+    Returns a pseudonymous visitor key (HMAC-SHA256 of the client IP), not the
+    raw IP -- see _IP_HASH_KEY. Name kept because every caller treats it as
+    "the key to rate-limit this visitor by".
+
+    Render/Railway sit behind a reverse proxy, so request.remote_addr is the
     proxy's address, not the visitor's -- the real IP is the first entry
     in X-Forwarded-For (set by the proxy, not spoofable by the client
-    since Render overwrites/appends to it rather than passing through
+    since the proxy overwrites/appends to it rather than passing through
     an arbitrary client-supplied value).
     """
     forwarded = req.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return req.remote_addr or "unknown"
+    raw = forwarded.split(",")[0].strip() if forwarded else (req.remote_addr or "unknown")
+    return hmac.new(_IP_HASH_KEY, raw.encode(), hashlib.sha256).hexdigest()[:32]
 
 
 def _today_utc() -> str:
@@ -80,7 +96,6 @@ def check_anon_usage(ip: str) -> tuple[bool, str | None]:
         return True, None  # fail open rather than block real users over a DB hiccup
 
     rows = resp.json()
-    print(f"[usage] check_anon_usage ip={ip} today={_today_utc()} rows={rows}")
     if rows and rows[0].get("used_date") == _today_utc():
         return False, (
             "You've used today's free analysis. Sign up free for 5 analyses "
@@ -100,8 +115,30 @@ def record_anon_usage(ip: str) -> None:
         json={"ip": ip, "used_date": _today_utc(), "updated_at": datetime.now(timezone.utc).isoformat()},
         timeout=_REQUEST_TIMEOUT,
     )
-    print(f"[usage] record_anon_usage ip={ip} status={resp.status_code} body={resp.text}")
+    if resp.status_code >= 400:
+        print(f"[usage] record_anon_usage failed {resp.status_code}: {resp.text}")
+    threading.Thread(target=_purge_old_anon_rows, daemon=True).start()
 
+
+def _purge_old_anon_rows() -> None:
+    """
+    Best-effort retention: drop anonymous-usage rows older than a week, since
+    only today's row ever matters. Needs `grant delete on public.anon_usage
+    to service_role` -- if that grant is missing this just logs and moves on
+    (rows then linger, they never block a user).
+    """
+    cutoff = (datetime.now(timezone.utc).date() - timedelta(days=ANON_RETENTION_DAYS)).isoformat()
+    try:
+        resp = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/anon_usage",
+            headers=_headers(),
+            params={"used_date": f"lt.{cutoff}"},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if resp.status_code >= 400:
+            print(f"[usage] anon purge failed {resp.status_code}: {resp.text[:120]}")
+    except requests.RequestException as e:
+        print(f"[usage] anon purge error: {e}")
 
 def _fetch_usage_fields(user_id: str) -> dict:
     resp = requests.get(

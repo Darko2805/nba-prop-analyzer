@@ -60,7 +60,7 @@ class AuthError(Exception):
         self.code = code
 
 
-def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
+def sign_up(email: str, password: str, name: str, redirect_to: str, consent: dict | None = None) -> None:
     """
     Creates an unconfirmed Supabase user and triggers the confirmation
     email. Raises AuthError on failure (including "already registered").
@@ -71,7 +71,7 @@ def sign_up(email: str, password: str, name: str, redirect_to: str) -> None:
         json={
             "email": email,
             "password": password,
-            "data": {"name": name},
+            "data": {"name": name, **(consent or {})},
             "options": {"email_redirect_to": redirect_to},
         },
         timeout=_REQUEST_TIMEOUT,

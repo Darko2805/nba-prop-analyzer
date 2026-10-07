@@ -4,9 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBA Prop Analyzer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -50,6 +47,14 @@
         <label>Password</label>
         <input type="password" id="signupPassword" placeholder="At least 8 characters">
       </div>
+      <label class="consent-row">
+        <input type="checkbox" id="signupConsent">
+        <span>I'm {{ min_age }} or older, and I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+      </label>
+      <label class="consent-row">
+        <input type="checkbox" id="signupMarketing">
+        <span>Optional: email me occasional product updates. I can unsubscribe any time.</span>
+      </label>
       <button type="button" class="btn" id="signupSubmit">Create account</button>
       <p class="signup-toggle">Already have an account? <button type="button" class="link-btn" id="showLogin">Log in</button></p>
     </div>
@@ -566,7 +571,12 @@ if (signupSubmit) {
     const name = document.getElementById('signupName').value.trim();
     const email = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
+    const acceptTerms = document.getElementById('signupConsent').checked;
     setSignupMsg('');
+    if (!acceptTerms) {
+      setSignupMsg('Please confirm your age and accept the Terms and Privacy Policy to continue.', 'error');
+      return;
+    }
 
     signupSubmit.disabled = true;
     signupSubmit.textContent = 'Creating...';
@@ -574,7 +584,7 @@ if (signupSubmit) {
       const resp = await fetch('/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, accept_terms: acceptTerms, marketing_opt_in: document.getElementById('signupMarketing').checked }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -1202,5 +1212,6 @@ document.querySelectorAll('.popular-card, .edge-row').forEach((card) => {
 })();
 </script>
 
+{% include "_footer.html" %}
 </body>
 </html>

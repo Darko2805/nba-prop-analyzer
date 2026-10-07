@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import sys
 import os
+import re
+import datetime
+import threading
+import requests
+from collections import OrderedDict
 
 # Allow running directly (python web/app.py) or from repo root (gunicorn)
 _repo_root = os.path.join(os.path.dirname(__file__), "..", "..")
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, Response, abort, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.analysis.headline import select_headline_factor, summarize_signal_agreement
-from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES
+from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES, LEGAL_VERSION, MIN_AGE
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
     find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
@@ -360,10 +365,51 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-insecure-key-set-F
 # per-IP anonymous rate limit useless (everyone looks like the same IP).
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
+# The login session lives in a signed cookie, so it needs the standard cookie
+# hardening. SECURE is tied to FLASK_SECRET_KEY being set (i.e. a real
+# deployment) so plain-http local dev can still set the cookie.
+_PRODUCTION = bool(os.environ.get("FLASK_SECRET_KEY"))
+app.config.update(
+    SESSION_COOKIE_SECURE=_PRODUCTION,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+if auth.is_configured() and not _PRODUCTION:
+    print("WARNING: Supabase auth is configured but FLASK_SECRET_KEY is not set -- "
+          "sessions are signed with a public default key and can be forged.")
+
+
+@app.after_request
+def add_security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if _PRODUCTION:
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=15552000")
+    return resp
+
 
 @app.context_processor
 def inject_user():
     return {"current_user": auth.current_user(), "auth_configured": auth.is_configured()}
+
+
+@app.context_processor
+def inject_legal():
+    # Operator details come from env vars so they aren't hardcoded in a public
+    # repo and can be set/changed on the host without a deploy of new text.
+    return {
+        "legal": {
+            "operator": os.environ.get("LEGAL_OPERATOR", "").strip(),
+            "contact_email": os.environ.get("LEGAL_CONTACT_EMAIL", "").strip(),
+            "jurisdiction": os.environ.get("LEGAL_JURISDICTION", "").strip(),
+            "postal_address": os.environ.get("LEGAL_POSTAL_ADDRESS", "").strip(),
+            "version": LEGAL_VERSION,
+        },
+        "min_age": MIN_AGE,
+        "current_year": datetime.date.today().year,
+    }
 
 # Load data once at startup
 print("Loading NBA data from databallr + TeamRankings + basketball-reference...")
@@ -398,9 +444,58 @@ def index():
     )
 
 
+# Team logos and player headshots live on ESPN's CDN. Loading them straight
+# from the browser would hand every visitor's IP to ESPN, so they're fetched
+# server-side and re-served from our own domain (kept in memory only).
+_IMG_SOURCES = {
+    "team": ("https://a.espncdn.com/i/teamlogos/nba/500/{}.png", re.compile(r"[a-z]{2,5}")),
+    "player": ("https://a.espncdn.com/i/headshots/nba/players/full/{}.png", re.compile(r"\d{3,9}")),
+}
+_IMG_CACHE: "OrderedDict[str, bytes]" = OrderedDict()
+_IMG_CACHE_MAX = 100
+_IMG_LOCK = threading.Lock()
+
+
+@app.route("/img/<kind>/<key>.png")
+def proxied_image(kind, key):
+    source = _IMG_SOURCES.get(kind)
+    if not source or not source[1].fullmatch(key):
+        abort(404)
+    cache_key = f"{kind}/{key}"
+    with _IMG_LOCK:
+        body = _IMG_CACHE.get(cache_key)
+        if body is not None:
+            _IMG_CACHE.move_to_end(cache_key)
+    if body is None:
+        try:
+            upstream = requests.get(source[0].format(key), timeout=6)
+        except requests.RequestException:
+            abort(404)
+        if upstream.status_code != 200 or not upstream.headers.get("content-type", "").startswith("image/"):
+            abort(404)
+        body = upstream.content
+        with _IMG_LOCK:
+            _IMG_CACHE[cache_key] = body
+            while len(_IMG_CACHE) > _IMG_CACHE_MAX:
+                _IMG_CACHE.popitem(last=False)
+    resp = Response(body, mimetype="image/png")
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 @app.route("/about")
 def about():
     return render_template("about.html")
+
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
 
 
 @app.route("/blog")
@@ -701,10 +796,18 @@ def auth_signup():
         return jsonify({"error": "Please enter your name."}), 400
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if data.get("accept_terms") is not True:
+        return jsonify({"error": f"You must be {MIN_AGE} or older and accept the Terms and Privacy Policy to create an account."}), 400
 
     redirect_to = f"{request.url_root.rstrip('/')}/auth/callback"
+    consent = {
+        "age_confirmed": MIN_AGE,
+        "terms_version": LEGAL_VERSION,
+        "terms_accepted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "marketing_opt_in": data.get("marketing_opt_in") is True,
+    }
     try:
-        auth.sign_up(email, password, name, redirect_to)
+        auth.sign_up(email, password, name, redirect_to, consent)
     except auth.AuthError as e:
         return jsonify({"error": str(e), "error_code": e.code}), 502
 

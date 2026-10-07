@@ -1,0 +1,58 @@
+{% extends "_legal_layout.html" %}
+{% block title %}Privacy Policy{% endblock %}
+{% block body %}
+<h1>Privacy Policy</h1>
+<p class="legal-meta">Version {{ legal.version }}</p>
+
+<div class="legal-summary">
+  <p>The short version: we collect only what we need to run accounts and the free-tier limits. There are no ads, no advertising or analytics trackers, no session recording, and we do not sell your data.</p>
+</div>
+
+<h2>1. Who we are</h2>
+<p>matchupedge.com (&ldquo;matchupedge&rdquo;, &ldquo;we&rdquo;) is operated by {% if legal.operator %}{{ legal.operator }}{% else %}the operator of this site{% endif %}.{% if legal.contact_email %} For anything in this policy, contact <a href="mailto:{{ legal.contact_email }}">{{ legal.contact_email }}</a>.{% endif %}</p>
+
+<h2>2. What we collect</h2>
+<ul>
+  <li><strong>Account details</strong> &mdash; your name and email address, your plan (free or paid), and counters for the free-tier allowance (how many analyses you have used and when the current allowance window started). Your password is handled by our authentication provider, which stores only a hash of it; we never see or store the plain-text password.</li>
+  <li><strong>Sign-up record</strong> &mdash; that you confirmed you are {{ min_age }} or older, which version of the Terms and this policy you accepted and when, and whether you chose to receive product updates.</li>
+  <li><strong>Anonymous visitors</strong> &mdash; to enforce one free analysis per day we store a salted, one-way hash of your IP address together with the date you last used it. We do not store your IP address in that record, and those records are deleted after about a week.</li>
+  <li><strong>The analyses you run</strong> &mdash; the player, opponent, prop and line you enter are used to produce your result. We do not keep a history of them against your identity.</li>
+  <li><strong>Hosting logs</strong> &mdash; our hosting provider automatically records standard request information (such as IP address, browser type and the page requested) for security and operations. We do not use it to profile visitors.</li>
+</ul>
+
+<h2>3. Cookies and tracking</h2>
+<p>We set a single cookie, and only when you sign in. It keeps you logged in, is signed and HttpOnly, and is strictly necessary for the site to work, so we do not show a cookie banner. We do not use advertising cookies, analytics trackers, fingerprinting, or session-recording tools. If that changes we will update this policy first and use a privacy-respecting option.</p>
+<p>We host our fonts, team logos and player images ourselves, so your browser does not contact Google or ESPN when you load a page.</p>
+
+<h2>4. Who else handles your data</h2>
+<ul>
+  <li><strong>Supabase</strong> &mdash; account authentication and our database.</li>
+  <li><strong>Brevo</strong> &mdash; delivery of account emails (confirmation and password reset).</li>
+  <li><strong>Our hosting provider</strong> &mdash; runs the site and keeps the logs described above.</li>
+</ul>
+<p>The &ldquo;League wire&rdquo; headlines are fetched by our server from public news feeds and link out to the publishers. If you click one, that publisher&rsquo;s own privacy policy applies. We do not sell your personal information and we do not share it for advertising.</p>
+
+<h2>5. Why we use it (legal bases)</h2>
+<p>To provide the service you asked for (your account and analyses); for our legitimate interests in security, preventing abuse and enforcing usage limits; with your consent where you gave it (for example product updates); and where the law requires.</p>
+
+<h2>6. How long we keep it</h2>
+<p>Account data is kept until you delete your account. The hashed anonymous-usage records are deleted after about a week. Hosting logs follow our provider&rsquo;s retention schedule.</p>
+
+<h2>7. Your rights</h2>
+<p>You can ask to access, correct, export or delete your personal data, to object to or restrict how we use it, and to withdraw any consent you gave. California residents have the right to know, delete and correct personal information and to opt out of its sale or sharing &mdash; we do neither. {% if legal.contact_email %}Email <a href="mailto:{{ legal.contact_email }}">{{ legal.contact_email }}</a> from the address on your account and we will respond within the time the law requires. {% endif %}You may also complain to your local data-protection authority.</p>
+
+<h2>8. Email</h2>
+<p>We send account emails (confirmation and password reset) because you asked for them. We send product updates or announcements only if you opted in at sign-up or otherwise asked us to. Every such email has an unsubscribe link{% if legal.postal_address %} and our postal address ({{ legal.postal_address }}){% else %} and our postal address{% endif %}, and unsubscribing does not affect account emails. If we contact someone directly about matchupedge (for example a journalist or creator), we say who we are and honour any request to stop.</p>
+
+<h2>9. Children</h2>
+<p>matchupedge is not for anyone under {{ min_age }}, and we do not knowingly collect personal information from children. If you believe a child has created an account, contact us and we will delete it.</p>
+
+<h2>10. Security and transfers</h2>
+<p>The site is served over HTTPS, passwords are stored only as hashes by our authentication provider, and access to our systems is limited. No system is perfectly secure, and we will notify you of a breach where the law requires. Our providers may process data in the United States and other countries; where the law requires, they rely on safeguards such as standard contractual clauses.</p>
+
+<h2>11. Changes</h2>
+<p>We will post changes here with a new version number, and tell account holders about material changes.</p>
+
+<h2>12. Contact</h2>
+<p>{% if legal.contact_email %}<a href="mailto:{{ legal.contact_email }}">{{ legal.contact_email }}</a>{% else %}Contact details are published on this page.{% endif %}</p>
+{% endblock %}

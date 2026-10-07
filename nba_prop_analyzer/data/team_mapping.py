@@ -83,7 +83,9 @@ TEAM_LOGO_SLUGS = {
 
 def team_logo_url(team_abbr: str) -> str | None:
     slug = TEAM_LOGO_SLUGS.get(team_abbr)
-    return f"https://a.espncdn.com/i/teamlogos/nba/500/{slug}.png" if slug else None
+    # Served via our own /img proxy (see web/app.py) so a visitor's browser
+    # never contacts ESPN's CDN directly.
+    return f"/img/team/{slug}.png" if slug else None
 
 
 def _normalize_for_match(name: str) -> str:
@@ -128,7 +130,7 @@ def find_espn_player_id(player_name: str, team_abbr: str) -> str | None:
 
 
 def espn_headshot_url(espn_player_id: str) -> str:
-    return f"https://a.espncdn.com/i/headshots/nba/players/full/{espn_player_id}.png"
+    return f"/img/player/{espn_player_id}.png"
 
 
 def _fetch_teams_playing_on(date) -> set:

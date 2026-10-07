@@ -1,0 +1,14 @@
+<footer class="site-footer">
+  <nav class="site-footer-links" aria-label="Legal and site links">
+    <a href="/about">About</a>
+    <a href="/blog">Blog</a>
+    <a href="/track-record">Track record</a>
+    <a href="/terms">Terms</a>
+    <a href="/privacy">Privacy</a>
+    {% if legal.contact_email %}<a href="mailto:{{ legal.contact_email }}">Contact</a>{% endif %}
+  </nav>
+  <p>matchupedge provides statistical analysis for information and entertainment only. It is not betting, financial or legal advice, and it does not guarantee any result &mdash; past performance does not predict future outcomes. You must be {{ min_age }} or older to use this site, and the legal age to bet is 21 in most U.S. states. Bet only where it is legal, and only what you can afford to lose.</p>
+  <p>If gambling is a problem for you or someone you know, call <strong>1-800-GAMBLER</strong> (U.S.) for free, confidential help, or contact your local problem-gambling helpline.</p>
+  <p>matchupedge is not affiliated with, endorsed by or sponsored by the NBA, any NBA team or player, or any sportsbook. Team names, logos and player images are the property of their respective owners.</p>
+  <p class="site-footer-copy">&copy; {{ current_year }} matchupedge</p>
+</footer>

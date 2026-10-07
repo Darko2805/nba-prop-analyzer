@@ -1,0 +1,65 @@
+{% extends "_legal_layout.html" %}
+{% block title %}Terms of Service{% endblock %}
+{% block body %}
+<h1>Terms of Service</h1>
+<p class="legal-meta">Version {{ legal.version }}</p>
+
+<div class="legal-summary">
+  <p>The short version: matchupedge is a statistics tool, not a tipster and not a sportsbook. Its numbers are estimates and can be wrong. You must be {{ min_age }} or older, you are responsible for following the law where you live, and you are the only one deciding whether to bet.</p>
+</div>
+
+<h2>1. Agreement and eligibility</h2>
+<p>By using matchupedge.com (the &ldquo;Service&rdquo;) or creating an account, you agree to these Terms and to our <a href="/privacy">Privacy Policy</a>. You must be at least {{ min_age }} years old. The legal age to bet is higher in many places (21 in most U.S. states). If you are not allowed to use a service like this where you live, do not use it. {% if legal.operator %}The Service is operated by {{ legal.operator }}.{% endif %}</p>
+
+<h2>2. What the Service is &mdash; and is not</h2>
+<ul>
+  <li>matchupedge provides statistical analysis of NBA player props for <strong>information and entertainment</strong>. It is not betting, financial, investment or legal advice, and it is not a tipster or picks service.</li>
+  <li>We are not a sportsbook. We do not accept, place or handle wagers, and we do not recommend any operator.</li>
+  <li>Projections are model estimates built from third-party data that can be late, incomplete or wrong, and they cannot see everything (injuries, lineup changes, coaching decisions, luck). We make <strong>no guarantee</strong> of accuracy, outcomes or profit.</li>
+  <li>Past results, including anything on the track-record page, do not predict future results.</li>
+  <li>Betting carries a real risk of loss. Never bet more than you can afford to lose. If gambling is a problem for you or someone you know, call 1-800-GAMBLER (U.S.) or your local helpline.</li>
+</ul>
+<p>You decide whether and how to act on anything you see here, and you are responsible for complying with the laws that apply to you.</p>
+
+<h2>3. Your account</h2>
+<p>Give accurate information, keep your password private, and tell us if you think your account has been compromised. You are responsible for activity on your account. We may suspend or close accounts that break these Terms. You can ask us to delete your account at any time.</p>
+
+<h2>4. Plans and limits</h2>
+<ul>
+  <li><strong>Anonymous:</strong> one analysis per day.</li>
+  <li><strong>Free account:</strong> five analyses, then a wait of about four days before the next five.</li>
+  <li><strong>Paid:</strong> unlimited analyses. Paid access is currently arranged manually and is not yet a self-serve subscription.</li>
+</ul>
+<p>We may change the limits, features and pricing going forward. When self-serve paid subscriptions are introduced, the price, billing frequency, renewal terms and how to cancel will be shown clearly next to the purchase button before you pay, and we will follow the auto-renewal and refund laws that apply.</p>
+
+<h2>5. Acceptable use</h2>
+<p>Do not: scrape or collect data from the Service in bulk or with bots or scripts; get around usage limits (for example with multiple accounts or rotating addresses); resell, republish or redistribute the Service&rsquo;s output commercially; probe or attack our systems; or use the Service for anything unlawful.</p>
+
+<h2>6. Our content and third-party material</h2>
+<p>The Service&rsquo;s design, text, methodology and code belong to us. You may view and use your results for your own personal, non-commercial purposes.</p>
+<p>Statistics come from third-party sources, and names, logos and images of the NBA, its teams and players belong to their respective owners and appear only to identify the subject of the analysis. matchupedge is not affiliated with, endorsed by or sponsored by the NBA, any team or player, or any sportsbook.</p>
+
+<h2>7. Copyright complaints</h2>
+<p>We do not host content uploaded by users. If you believe something on the Service infringes your copyright, {% if legal.contact_email %}email <a href="mailto:{{ legal.contact_email }}">{{ legal.contact_email }}</a>{% else %}contact us{% endif %} with: a description of the work; where it appears on the Service; your contact details; a statement that you believe in good faith the use is not authorised; and a statement, under penalty of perjury, that your notice is accurate and that you are the owner or authorised to act for the owner. We will review it and remove material where appropriate.</p>
+
+<h2>8. Disclaimers</h2>
+<p>The Service is provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo;. To the fullest extent the law allows, we disclaim all warranties, including accuracy, merchantability, fitness for a particular purpose and non-infringement, and we do not promise the Service will be uninterrupted or error-free.</p>
+
+<h2>9. Limit of liability</h2>
+<p>To the fullest extent the law allows, we are not liable for indirect, incidental, special or consequential damages, or for lost profits, lost wagers or betting losses, arising from your use of the Service. Our total liability for any claim is limited to the greater of what you paid us in the 12 months before the claim or US$100. Nothing in these Terms limits rights you have under consumer law that cannot be waived.</p>
+
+<h2>10. Your responsibility</h2>
+<p>To the extent the law allows, you agree to cover losses we suffer because you broke these Terms or used the Service unlawfully.</p>
+
+<h2>11. Ending use</h2>
+<p>You can stop using the Service at any time. We may suspend or end access if you break these Terms or if we stop offering the Service.</p>
+
+<h2>12. Governing law</h2>
+<p>{% if legal.jurisdiction %}These Terms are governed by the laws of {{ legal.jurisdiction }}, without regard to conflict-of-law rules.{% else %}These Terms are governed by the laws that apply to the operator of the Service.{% endif %}</p>
+
+<h2>13. Changes</h2>
+<p>We may update these Terms. We will post the new version here with a new version number and tell account holders about material changes. Continuing to use the Service after a change means you accept it.</p>
+
+<h2>14. Contact</h2>
+<p>{% if legal.contact_email %}<a href="mailto:{{ legal.contact_email }}">{{ legal.contact_email }}</a>{% else %}Contact details are published on this page.{% endif %}</p>
+{% endblock %}
