@@ -365,8 +365,8 @@
        tracked players and ranked by how extreme the result actually is. -->
   {% if biggest_edges %}
   <div class="showcase" id="top-picks">
-    <h3>Biggest edges tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW · SAMPLE MATCHUPS</span>{% endif %}</h3>
-    <p class="empty-hint">The single factor that moved each projection the most, the real edge over the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.{% if is_preview_schedule %} Tonight's matchups shown here are sample games for preview, not the real schedule.{% endif %}</p>
+    <h3>Biggest edges tonight</h3>
+    <p class="empty-hint">The single factor that moved each projection the most, the real edge over the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.</p>
     <div class="edge-table-wrap">
       <table class="edge-table">
         <thead>
@@ -472,10 +472,15 @@
 
   <aside class="dossier-side">
 
-    <!-- Tonight's Games -->
+    <!-- Tonight's Games: live from ESPN's scoreboard (see build_tonight) -->
     <div class="side-block">
-      <h3>Tonight {% if is_preview_schedule %}<span class="preview-tag">PREVIEW</span>{% endif %}</h3>
-      {% if games_today %}
+      <h3>Tonight {% if tonight.kind == 'preseason' %}<span class="season-tag">PRESEASON</span>{% elif tonight.kind == 'postseason' %}<span class="season-tag">PLAYOFFS</span>{% endif %}</h3>
+      {% if not tonight.ok %}
+        <p class="empty-hint">Tonight's schedule couldn't be loaded right now. Check back in a few minutes.</p>
+      {% elif games_today %}
+        {% if tonight.kind == 'preseason' %}
+        <p class="empty-hint">Exhibition games. Starters play limited minutes, so edges and fatigue appear once the regular season starts.</p>
+        {% endif %}
         <div class="games-list">
           {% for g in games_today %}
           <div class="game-row">
@@ -489,7 +494,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="empty-hint">No games scheduled today.</p>
+        <p class="empty-hint">No games tonight.{% if tonight.next_up %} Next up: {{ tonight.next_up.label }} &middot; {{ tonight.next_up.count }} game{{ '' if tonight.next_up.count == 1 else 's' }}{% if tonight.next_up.kind == 'preseason' %} (preseason){% endif %}.{% else %} The next games are more than a week away.{% endif %}</p>
       {% endif %}
     </div>
 
@@ -499,8 +504,8 @@
          above, which only look at the last 1-3 nights. -->
     {% if fatigue_watch %}
     <div class="side-block">
-      <h3>Fatigue watch {% if is_preview_schedule %}<span class="preview-tag">PREVIEW</span>{% endif %}</h3>
-      <p class="empty-hint">Last two weeks, not just last night.{% if is_preview_schedule %} Sample data for preview.{% endif %}</p>
+      <h3>Fatigue watch</h3>
+      <p class="empty-hint">Last two weeks, not just last night.</p>
       <div class="fatigue-list">
         {% for t in fatigue_watch %}
         <div class="fatigue-row">

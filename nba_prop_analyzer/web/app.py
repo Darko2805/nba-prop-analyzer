@@ -5,6 +5,7 @@ import os
 import re
 import datetime
 import threading
+import concurrent.futures
 import requests
 from collections import OrderedDict
 
@@ -16,11 +17,12 @@ if _repo_root not in sys.path:
 from flask import Flask, Response, abort, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.analysis.headline import select_headline_factor, summarize_signal_agreement
+from nba_prop_analyzer.cache import cache
 from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES, LEGAL_VERSION, MIN_AGE
 from nba_prop_analyzer.data.team_mapping import (
     ALL_TEAM_ABBRS, TEAM_COLORS, TEAM_FULL_NAMES, normalize_team, team_logo_url,
     find_espn_player_id, espn_headshot_url, fetch_back_to_back_teams, fetch_three_in_four_teams,
-    fetch_schedule_load, fetch_injuries,
+    fetch_schedule_load, fetch_injuries, fetch_games_on, tonight_date, et_date,
 )
 from nba_prop_analyzer.analysis.fatigue_watch import compute_fatigue_scores
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
@@ -238,28 +240,13 @@ def annotate_schedule_fatigue(games_today: list) -> list:
     return annotated
 
 
-# Plausible (not real) two-week loads for the off-season preview schedule's
-# teams only -- fetch_schedule_load() legitimately returns nothing right now
-# since ESPN has no real games in the last 14 days for anyone. Used only
-# while is_preview is True, and always shown under the same PREVIEW tag as
-# the rest of the demo schedule -- never presented as real.
-_SAMPLE_FATIGUE_LOAD = {
-    "BOS": {"games": 8, "away_games": 6, "back_to_backs": 3, "extra_minutes": 10, "close_games": 4},
-    "LAL": {"games": 6, "away_games": 2, "back_to_backs": 1, "extra_minutes": 5, "close_games": 2},
-    "DEN": {"games": 5, "away_games": 1, "back_to_backs": 0, "extra_minutes": 0, "close_games": 1},
-    "GSW": {"games": 7, "away_games": 4, "back_to_backs": 2, "extra_minutes": 5, "close_games": 3},
-    "MIA": {"games": 6, "away_games": 5, "back_to_backs": 1, "extra_minutes": 0, "close_games": 2},
-    "OKC": {"games": 5, "away_games": 2, "back_to_backs": 0, "extra_minutes": 0, "close_games": 1},
-}
-
-
-def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int = 6) -> list:
+def build_fatigue_watch(games_today: list, limit: int = 6) -> list:
     """
     Ranks tonight's playing teams by their rolling two-week schedule
     load -- games, road games, back-to-backs, overtime minutes, and
     close-game count over the last 14 days, weighted toward road load
     (see fatigue_watch.compute_fatigue_scores) -- for the homepage's
-    "Fatigue Watch" preview. This looks at the last two weeks;
+    "Fatigue Watch" section. This looks at the last two weeks;
     annotate_schedule_fatigue() above only flags tonight's single
     back-to-back/3-in-4 status, a different, narrower signal shown on
     the schedule cards.
@@ -272,8 +259,6 @@ def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int 
         schedule_load = fetch_schedule_load()
     except Exception:
         schedule_load = {}
-    if not schedule_load and is_preview:
-        schedule_load = _SAMPLE_FATIGUE_LOAD
     scored = compute_fatigue_scores(schedule_load)
 
     opponent_of = {}
@@ -295,6 +280,58 @@ def build_fatigue_watch(games_today: list, is_preview: bool = False, limit: int 
     ]
     watch.sort(key=lambda t: t["fatigue_score"], reverse=True)
     return watch[:limit]
+
+
+def _slate_kind(games: list) -> str | None:
+    """preseason / regular / postseason, from ESPN's per-game season type."""
+    if not games:
+        return None
+    kinds = {g["season_type"] for g in games}
+    if kinds == {1}:
+        return "preseason"
+    if kinds == {3}:
+        return "postseason"
+    return "regular"
+
+
+def _find_next_slate(after) -> dict | None:
+    """The next day (within 10 days) that has games, for the empty-day message.
+    One cached ESPN request per day, fetched in parallel, and the answer itself
+    is cached so a quiet stretch doesn't re-scan on every page view."""
+    cache_key = f"next_slate_{after.isoformat()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached or None
+    days = [after + datetime.timedelta(days=i) for i in range(1, 11)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+        results = list(pool.map(fetch_games_on, days))
+    found = None
+    for day, games in zip(days, results):
+        if games:
+            found = {"label": f"{day:%a, %b} {day.day}", "count": len(games), "kind": _slate_kind(games)}
+            break
+    if None not in results:  # don't remember an answer built on a failed lookup
+        cache.set(cache_key, found or {})
+    return found
+
+
+def build_tonight() -> dict:
+    """
+    Tonight's slate, live from ESPN: {ok, date, games, kind, next_up}.
+    ok=False means the schedule couldn't be loaded (as opposed to a genuinely
+    empty day). next_up is only filled on an empty day.
+    """
+    today = tonight_date()
+    games = fetch_games_on(today)
+    if games is None:
+        return {"ok": False, "date": today, "games": [], "kind": None, "next_up": None}
+    return {
+        "ok": True,
+        "date": today,
+        "games": games,
+        "kind": _slate_kind(games),
+        "next_up": None if games else _find_next_slate(today),
+    }
 
 
 def build_model_inputs() -> list:
@@ -420,27 +457,27 @@ print("Data loaded. Server ready.\n")
 
 @app.route("/")
 def index():
-    games_today = snapshot_store.load_games_today()
-    popular_bets = build_popular_bets(analyzer, games_today) if analyzer.is_ready() else []
-    biggest_edges = build_biggest_edges(analyzer, games_today) if analyzer.is_ready() else []
-    games_today_annotated = annotate_schedule_fatigue(games_today)
-    # True only while off-season placeholder games are loaded for a demo --
-    # set via meta.json's games_today_is_preview key, cleared automatically
-    # the next time the real daily snapshot refresh runs (it never writes
-    # this key, since it always loads the real schedule).
-    is_preview_schedule = bool(snapshot_store.load_meta().get("games_today_is_preview"))
-    fatigue_watch = build_fatigue_watch(games_today, is_preview=is_preview_schedule) if games_today else []
+    tonight = build_tonight()
+    games = tonight["games"]
+    # "Edges" and "fatigue" are regular-season claims: preseason rotations are
+    # short and unpredictable and the stats are last season's, so those two
+    # sections (and the opponent prefill on Quick Looks) wait for real games.
+    in_season = tonight["kind"] in ("regular", "postseason")
+    popular_bets = build_popular_bets(analyzer, games if in_season else []) if analyzer.is_ready() else []
+    biggest_edges = build_biggest_edges(analyzer, games) if (analyzer.is_ready() and in_season) else []
+    fatigue_watch = build_fatigue_watch(games) if in_season else []
+    games_annotated = annotate_schedule_fatigue(games) if in_season else games
     model_inputs = build_model_inputs()
     return render_template(
         "index.html",
         teams=ALL_TEAM_ABBRS,
         prop_types=PROP_TYPES,
-        games_today=games_today_annotated,
+        tonight=tonight,
+        games_today=games_annotated,
         popular_bets=popular_bets,
         model_inputs=model_inputs,
         biggest_edges=biggest_edges,
         fatigue_watch=fatigue_watch,
-        is_preview_schedule=is_preview_schedule,
     )
 
 
@@ -491,7 +528,6 @@ def data_version():
     resp = jsonify({
         "refreshed_at": meta.get("refreshed_at"),
         "logs_refreshed_at": meta.get("logs_refreshed_at"),
-        "games_today": meta.get("games_today_count"),
     })
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -559,8 +595,11 @@ def snapshot_track_record():
         return jsonify({"error": "Not found"}), 404
     if not analyzer.is_ready():
         return jsonify({"error": "Data not ready"}), 503
-    games_today = snapshot_store.load_games_today()
-    count = track_record.snapshot_todays_predictions(analyzer, games_today)
+    # The real Eastern-date slate, regular/postseason only: preseason games
+    # aren't a meaningful basis for a graded track record.
+    games = fetch_games_on(et_date()) or []
+    games = [g for g in games if g["season_type"] in (2, 3)]
+    count = track_record.snapshot_todays_predictions(analyzer, games)
     return jsonify({"recorded": count})
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime
+import re
 import unicodedata
 
 import requests
@@ -248,6 +250,77 @@ def fetch_three_in_four_teams(today=None) -> set:
     return {abbr for abbr, count in game_counts.items() if count >= 2}
 
 
+def et_date():
+    """Today's calendar date in US Eastern time (the timezone NBA schedules and
+    game dates use), without needing a tz database on the host: a fixed UTC-5."""
+    return (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=5)).date()
+
+
+def tonight_date():
+    """The slate the site should call "tonight": stays on the previous Eastern
+    date until ~6am ET so late West Coast games still count, instead of the
+    list flipping to tomorrow at midnight."""
+    return (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=10)).date()
+
+
+def _start_time_label(status_type: dict) -> str:
+    state = status_type.get("state")
+    if state == "in":
+        return "Live"
+    if state == "post":
+        return "Final"
+    m = re.search(r"(\d{1,2}:\d{2})\s*(AM|PM)\s*(E[SD]T)", status_type.get("shortDetail", ""))
+    return f"{m.group(1)}{m.group(2)[0].lower()} ET" if m else "TBD"
+
+
+def fetch_games_on(date) -> list | None:
+    """
+    The NBA slate for one Eastern-time calendar date, straight from ESPN's
+    public scoreboard (the same source the schedule/fatigue features already
+    use, and reachable from the host, unlike basketball-reference). Each game:
+    {start_time, away_team, home_team, arena, season_type} with season_type
+    1 = preseason, 2 = regular season, 3 = postseason.
+
+    Returns None when ESPN can't be reached (and does not cache that), so a
+    caller can tell "no games today" apart from "couldn't load the schedule".
+    ESPN keys games by the Eastern date, so the evening games of a given day
+    are all returned for that day even though they tip off after midnight UTC.
+    """
+    date_str = date.strftime("%Y%m%d")
+    cache_key = f"espn_slate_{date_str}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        resp = requests.get(
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}",
+            timeout=8,
+        )
+        resp.raise_for_status()
+        games = []
+        for event in resp.json().get("events", []):
+            competition = (event.get("competitions") or [{}])[0]
+            sides = {c.get("homeAway"): (c.get("team") or {}).get("displayName", "")
+                     for c in competition.get("competitors", [])}
+            if not sides.get("away") or not sides.get("home"):
+                continue
+            games.append({
+                "start_time": _start_time_label((event.get("status") or {}).get("type") or {}),
+                "away_team": sides["away"],
+                "home_team": sides["home"],
+                "arena": (competition.get("venue") or {}).get("fullName", ""),
+                "season_type": (event.get("season") or {}).get("type", 2),
+                "_sort": event.get("date", ""),
+            })
+        games.sort(key=lambda g: g["_sort"])
+        for g in games:
+            g.pop("_sort")
+    except Exception:
+        return None
+    cache.set(cache_key, games)
+    return games
+
+
 def _fetch_team_games_on(date) -> dict:
     """
     Like _fetch_teams_playing_on, but keyed by team abbreviation with a
@@ -276,6 +349,9 @@ def _fetch_team_games_on(date) -> dict:
         )
         resp.raise_for_status()
         for event in resp.json().get("events", []):
+            # Preseason minutes are exhibition minutes, not fatigue.
+            if (event.get("season") or {}).get("type") == 1:
+                continue
             competition = (event.get("competitions") or [{}])[0]
             competitors = competition.get("competitors", [])
             period = (event.get("status") or {}).get("period", 0)

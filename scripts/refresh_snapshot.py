@@ -13,9 +13,9 @@ Rate-limited to 1 request per 3 seconds (bbref_scraper._rate_limit), so the
 per-player part over ~300-400 rotation players takes roughly 30-40 minutes.
 
 That slow part is separable so a daily run can publish the fast data first:
-  --fast        bulk player/team stats, zone defense, team stats, today's
-                schedule (about a minute) -- enough to keep rosters, teams
-                and the schedule current even if a long run is interrupted.
+  --fast        bulk player/team stats, zone defense, team stats
+                (seconds) -- enough to keep rosters, teams
+                current even if a long run is interrupted.
   --logs-only   per-player game logs + shot zones for the players already in
                 the snapshot (the 30-40 minute part).
   (no flag)     both, in that order.
@@ -29,7 +29,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from nba_prop_analyzer.data.bbref_league_stats import (
-    fetch_all_players_per_game, fetch_opponent_zone_defense, fetch_todays_games,
+    fetch_all_players_per_game, fetch_opponent_zone_defense,
 )
 from nba_prop_analyzer.data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile
 from nba_prop_analyzer.data import snapshot_store
@@ -70,20 +70,10 @@ def refresh_fast() -> dict:
     except Exception as e:
         print(f"  Team stats fetch failed ({e}), keeping the previous snapshot")
 
-    print("Fetching today's game schedule...")
-    try:
-        games_today = fetch_todays_games()
-        print(f"  {len(games_today)} games today")
-    except Exception as e:
-        print(f"  Today's games fetch failed ({e}), continuing with none")
-        games_today = []
-    snapshot_store.save_games_today(games_today)
-
     snapshot_store.save_meta({
         **snapshot_store.load_meta(),
         "refreshed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "player_count": len(players),
-        "games_today_count": len(games_today),
     })
     print("Fast refresh complete.")
     return {"players": players}
@@ -138,7 +128,7 @@ def refresh_logs(players=None) -> None:
 def main():
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--fast", action="store_true", help="bulk stats + schedule only")
+    mode.add_argument("--fast", action="store_true", help="bulk stats only")
     mode.add_argument("--logs-only", action="store_true", help="per-player game logs + shot zones only")
     args = parser.parse_args()
 

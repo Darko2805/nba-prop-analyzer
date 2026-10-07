@@ -1278,7 +1278,7 @@ a.blog-list-item p:last-child {
   vertical-align: middle;
 }
 
-.preview-tag {
+.season-tag {
   display: inline-block;
   font-family: var(--font-mono);
   font-size: 0.6rem;

@@ -22,7 +22,7 @@ import requests
 from datetime import datetime, timezone
 
 from .databallr_client import find_player
-from .team_mapping import normalize_team
+from .team_mapping import normalize_team, et_date
 from .bbref_scraper import get_stat_from_games
 from . import snapshot_store
 
@@ -53,7 +53,9 @@ def _headers() -> dict:
 
 
 def _today() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+    # Rows are keyed by the Eastern game date -- the date basketball-reference
+    # logs the game under, which record_outcomes() later matches against.
+    return et_date().isoformat()
 
 
 def snapshot_todays_predictions(analyzer, games_today: list) -> int:
