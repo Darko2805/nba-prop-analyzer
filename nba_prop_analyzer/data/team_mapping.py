@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import datetime
 import re
 import unicodedata
@@ -11,7 +12,7 @@ from ..cache import cache
 TEAM_ABBR_MAP = {
     "Atlanta Hawks": "ATL", "Hawks": "ATL", "ATL": "ATL",
     "Boston Celtics": "BOS", "Celtics": "BOS", "BOS": "BOS",
-    "Brooklyn Nets": "BKN", "Nets": "BKN", "BKN": "BKN", "BK": "BKN",
+    "Brooklyn Nets": "BKN", "Nets": "BKN", "BKN": "BKN", "BK": "BKN", "BRK": "BKN",
     "Charlotte Hornets": "CHA", "Hornets": "CHA", "CHA": "CHA", "CHO": "CHA",
     "Chicago Bulls": "CHI", "Bulls": "CHI", "CHI": "CHI",
     "Cleveland Cavaliers": "CLE", "Cavaliers": "CLE", "Cavs": "CLE", "CLE": "CLE",
@@ -123,9 +124,42 @@ def _espn_roster(team_abbr: str) -> list[dict]:
         resp.raise_for_status()
         roster = resp.json().get("athletes", [])
     except Exception:
-        roster = []
+        return []  # not cached, so the next call can recover once ESPN does
     cache.set(cache_key, roster)
     return roster
+
+
+def fetch_current_teams() -> dict:
+    """
+    {normalized player name: team abbreviation} from the 30 live ESPN rosters
+    (fetched in parallel, cached for an hour). Our player stats are last
+    season's, so the team in them is last season's too -- about 30% of
+    rotation players have since changed teams. Returns {} when ESPN can't be
+    reached (too many rosters missing to trust), and does not cache that.
+    """
+    cache_key = "espn_current_teams"
+    teams = cache.get(cache_key)
+    if teams is not None:
+        return teams
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+        rosters = list(pool.map(_espn_roster, ALL_TEAM_ABBRS))
+    if sum(1 for r in rosters if r) < 25:
+        return {}
+    teams = {}
+    for abbr, roster in zip(ALL_TEAM_ABBRS, rosters):
+        for athlete in roster:
+            name = _normalize_for_match(athlete.get("fullName", ""))
+            if name:
+                teams[name] = abbr
+    cache.set(cache_key, teams)
+    return teams
+
+
+def current_team_of(player_name: str) -> str | None:
+    """A player's team right now, or None if ESPN is unreachable or doesn't
+    list them (free agent, overseas, or a name ESPN spells differently) --
+    callers should keep what they already have in that case."""
+    return fetch_current_teams().get(_normalize_for_match(player_name))
 
 
 def find_espn_player_id(player_name: str, team_abbr: str) -> str | None:

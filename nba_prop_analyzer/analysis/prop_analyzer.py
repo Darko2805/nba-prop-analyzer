@@ -1,10 +1,12 @@
+import time
+
 from ..config import COMBO_PROP_TYPES
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
 from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent_zone_defense
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
-from ..data.team_mapping import normalize_team, fetch_back_to_back_teams, fetch_three_in_four_teams
+from ..data.team_mapping import normalize_team, fetch_current_teams, current_team_of, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
@@ -24,6 +26,7 @@ class PropAnalyzer:
         self.opponent_defenses = {}
         self.league_avg = {}
         self.tr_stats = {}
+        self._teams_checked_at = 0.0
 
     def load_data(self):
         print("  Loading player stats snapshot...")
@@ -69,6 +72,38 @@ class PropAnalyzer:
                 print(f"  Opponent zone defense fetch failed ({e}), short/long mid-range gaps will use league average")
                 zone_defense = {}
         self._merge_bbref_zone_defense(zone_defense)
+
+        # Raw bbref team codes (e.g. "BRK") normalize to our canonical abbreviations.
+        for p in self.players:
+            p.team_abbr = normalize_team(p.team_abbr) or p.team_abbr
+        self.refresh_player_teams(force=True)
+
+    def refresh_player_teams(self, force: bool = False, max_age_seconds: int = 6 * 3600) -> None:
+        """
+        Points each player at the team they are on NOW (live ESPN rosters)
+        instead of the team in the season-stats snapshot, which is last
+        season's. Cheap to call on every request: it only does work when the
+        last successful check is older than max_age_seconds, so mid-season
+        trades are picked up without a redeploy. Players ESPN doesn't list
+        keep their snapshot team.
+        """
+        now = time.time()
+        if not force and now - self._teams_checked_at < max_age_seconds:
+            return
+        if not fetch_current_teams():
+            if force:
+                print("  Live rosters unavailable, keeping snapshot teams")
+            self._teams_checked_at = now - max_age_seconds + 600  # retry in ~10 min
+            return
+        moved = 0
+        for p in self.players:
+            current = current_team_of(p.name)
+            if current and current != p.team_abbr:
+                p.team_abbr = current
+                moved += 1
+        self._teams_checked_at = now
+        if force:
+            print(f"  Updated the team for {moved} players from live rosters")
 
     def is_ready(self) -> bool:
         """False when a required upstream data source failed to load."""

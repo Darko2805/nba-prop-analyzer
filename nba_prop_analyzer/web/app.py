@@ -457,6 +457,7 @@ print("Data loaded. Server ready.\n")
 
 @app.route("/")
 def index():
+    analyzer.refresh_player_teams()
     tonight = build_tonight()
     games = tonight["games"]
     # "Edges" and "fatigue" are regular-season claims: preseason rotations are
@@ -654,6 +655,7 @@ def api_suggest_line():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    analyzer.refresh_player_teams()
     if not analyzer.is_ready():
         return jsonify({
             "error": "NBA stats data is temporarily unavailable from our data provider. Please try again later."
