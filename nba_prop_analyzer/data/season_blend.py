@@ -59,3 +59,33 @@ def blend_dataclass(cur, prev, weight: float, keep_current: tuple = ("games_play
         else:
             values[f.name] = weight * cv + (1 - weight) * pv
     return dataclasses.replace(cur, **values)
+
+
+# Per-game counting stats scale with minutes; everything else numeric is a rate.
+_COUNTING_STATS = ("ppg", "apg", "rpg", "orpg", "drpg", "three_pm_pg", "three_pa_pg", "fgm_pg", "fga_pg", "topg")
+_NOT_BLENDED = ("games_played", "mpg", "blend_weight")
+
+
+def league_average_player(prior_players: list, like, min_games: int = 5, min_mpg: float = 12.0):
+    """
+    A rotation-level league-average player playing the same minutes as `like`
+    (a PlayerStats): the starting point for a player with no history. Counting
+    stats are the league's per-minute rate times like.mpg, so a 28-minute
+    rookie starter is not pulled toward a bench player's numbers; shooting and
+    efficiency rates are the league's minutes-weighted mean. Built from last
+    season's rotation players. None if there's nothing to build it from.
+    """
+    pool = [p for p in prior_players if p.games_played >= min_games and p.mpg >= min_mpg]
+    total_minutes = sum(p.games_played * p.mpg for p in pool)
+    if not pool or total_minutes <= 0 or not like.mpg or like.mpg <= 0:
+        return None
+    values = {}
+    for f in dataclasses.fields(like):
+        if f.name in _NOT_BLENDED or not _is_number(getattr(like, f.name)):
+            continue
+        if f.name in _COUNTING_STATS:
+            per_minute = sum(p.games_played * getattr(p, f.name) for p in pool) / total_minutes
+            values[f.name] = per_minute * like.mpg
+        else:
+            values[f.name] = sum(p.games_played * p.mpg * getattr(p, f.name) for p in pool) / total_minutes
+    return dataclasses.replace(like, **values)

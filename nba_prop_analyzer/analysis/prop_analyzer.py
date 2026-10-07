@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K
+from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K, ROOKIE_BLEND_K
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
@@ -10,7 +10,7 @@ from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team, fetch_current_teams, current_team_of, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
-from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers
+from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers, league_average_player
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
@@ -125,19 +125,32 @@ class PropAnalyzer:
         return bool(self.players) and bool(self.team_profiles)
 
     def _blend_players(self, current: list, prior: list) -> list:
-        """Each player's numbers mix this season with last by games/(games+K);
-        a player with no new-season games is exactly last season's numbers."""
+        """Each player's numbers mix this season with last by games/(games+K); a player with no new-season
+        games is exactly last season's numbers. A player with no last-season row (a rookie) mixes with a
+        league-average player of their own minutes instead, with the smaller ROOKIE_BLEND_K."""
         by_name = {}
         for p in prior:
             p.blend_weight = 0.0
             by_name[p.name] = p
         for c in current:
             prev = by_name.get(c.name)
-            w = blend_weight(c.games_played, PLAYER_BLEND_K) if prev else 1.0
-            blended = blend_dataclass(c, prev, w)
+            if prev:
+                w = blend_weight(c.games_played, PLAYER_BLEND_K)
+                blended = blend_dataclass(c, prev, w)
+            else:
+                baseline = league_average_player(prior, c)
+                w = blend_weight(c.games_played, ROOKIE_BLEND_K) if baseline else 1.0
+                blended = blend_dataclass(c, baseline, w)
             blended.blend_weight = w
             by_name[c.name] = blended
         return list(by_name.values())
+
+    def _league_zone(self) -> dict:
+        """League-average shot-zone profile from last season, the starting point for a player with no zone
+        history of their own."""
+        zones = snapshot_store.load_shot_zones(prev=True).values()
+        keys = {k for z in zones for k, v in z.items() if isinstance(v, (int, float))}
+        return {k: sum(z[k] for z in zones if k in z) / sum(1 for z in zones if k in z) for k in keys} if zones else {}
 
     def _merge_bbref_zone_defense(self, current: dict, prior: dict) -> None:
         """Fill in opponent short/long mid-range defense (at-rim and 3PT already come from databallr/TeamRankings)."""
@@ -184,6 +197,8 @@ class PropAnalyzer:
                 prior = fetch_shot_zone_profile(player.name, PRIOR_SEASON_YEAR)
             except Exception as e:
                 print(f"  Shot-zone profile fetch failed ({e}), estimating from three-point rate")
+        if current and not prior:
+            prior = self._league_zone()
         if current and prior:
             return blend_numbers(current, prior, player.blend_weight)
         return current or prior or None

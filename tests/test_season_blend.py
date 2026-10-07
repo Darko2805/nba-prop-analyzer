@@ -19,7 +19,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, ROOT)
 
 from nba_prop_analyzer.cache import cache
-from nba_prop_analyzer.config import PLAYER_BLEND_K, TEAM_BLEND_K
+from nba_prop_analyzer.config import PLAYER_BLEND_K, TEAM_BLEND_K, ROOKIE_BLEND_K
 from nba_prop_analyzer.data import snapshot_store, databallr_client
 from nba_prop_analyzer.data.bbref_scraper import GameLog
 from nba_prop_analyzer.data.season_blend import blend_weight
@@ -50,8 +50,10 @@ class SeasonBlendTest(unittest.TestCase):
             p["ppg"] = p["ppg"] * scale
             return p
         rookie = dict(prior_players["LeBron James"], name="Test Rookie", games_played=5, ppg=12.0)
+        rookie_one_game = dict(prior_players["LeBron James"], name="Test Rookie 1g", games_played=1, ppg=30.0)
         current_players = [cur("LeBron James", 10, 1.5), cur("Jayson Tatum", 30, 1.5),
-                           cur("Stephen Curry", 1, 1.5), rookie]
+                           cur("Stephen Curry", 1, 1.5), rookie, rookie_one_game]
+        cls.rookie = rookie
         cls._write("players.json", current_players)
 
         # LeBron: 10 new games after last season's, all 40 pts
@@ -61,7 +63,8 @@ class SeasonBlendTest(unittest.TestCase):
         cls.prior_log_count = len(prior_logs)
 
         prior_zone = _prior("shot_zones_prev.json")["LeBron James"]
-        cls._write("shot_zones.json", {"LeBron James": dict(prior_zone, at_rim_freq=prior_zone["at_rim_freq"] + 0.2)})
+        cls._write("shot_zones.json", {"LeBron James": dict(prior_zone, at_rim_freq=prior_zone["at_rim_freq"] + 0.2),
+                                       "Test Rookie": dict(prior_zone, at_rim_freq=0.9)})
         cls.prior_zone = prior_zone
 
         # one team (BOS) has played 15 games, scoring 10% more per game than last season
@@ -91,6 +94,9 @@ class SeasonBlendTest(unittest.TestCase):
             patch("nba_prop_analyzer.analysis.prop_analyzer.fetch_teamrankings_opponent_stats",
                   return_value=({"BOS": dict(cls.prior_tr, opp_ppg=cls.prior_tr["opp_ppg"] * 1.2)}, "2026")),
             patch.object(databallr_client, "fetch_team_stats_raw", return_value=cur_raw),
+            # the analysis asks ESPN who is on a back-to-back; keep the test off the network
+            patch("nba_prop_analyzer.analysis.prop_analyzer.fetch_back_to_back_teams", return_value=set()),
+            patch("nba_prop_analyzer.analysis.prop_analyzer.fetch_three_in_four_teams", return_value=set()),
         ]
         for p in cls.patches:
             p.start()
@@ -132,13 +138,43 @@ class SeasonBlendTest(unittest.TestCase):
         self.assertEqual(p.ppg, prior["ppg"])
         self.assertEqual(p.games_played, prior["games_played"])
 
-    def test_rookie_without_a_prior_uses_current_only(self):
-        r = self.by_name["Test Rookie"]
-        self.assertEqual(r.ppg, 12.0)
-        self.assertEqual(r.blend_weight, 1.0)
+    def _league_pool(self):
+        return [p for p in self.prior_players.values() if p["games_played"] >= 5 and p["mpg"] >= 12.0]
 
-    def test_nobody_is_dropped(self):
-        self.assertEqual(len(self.an.players), len(self.prior_players) + 1)
+    def test_rookie_blends_with_a_league_average_player_of_their_own_minutes(self):
+        pool, r = self._league_pool(), self.rookie
+        total = sum(p["games_played"] * p["mpg"] for p in pool)
+        league_ppg_per_min = sum(p["games_played"] * p["ppg"] for p in pool) / total
+        w = 5 / (5 + ROOKIE_BLEND_K)
+        got = self.by_name["Test Rookie"]
+        self.assertAlmostEqual(got.blend_weight, w, places=9)
+        self.assertAlmostEqual(got.ppg, w * 12.0 + (1 - w) * league_ppg_per_min * r["mpg"], places=6)
+        self.assertEqual(got.mpg, r["mpg"])            # their role is observed, never blended
+        self.assertEqual(got.games_played, 5)
+
+    def test_rookie_rate_stats_use_the_minutes_weighted_league_mean(self):
+        pool, r = self._league_pool(), self.rookie
+        total = sum(p["games_played"] * p["mpg"] for p in pool)
+        league_ts = sum(p["games_played"] * p["mpg"] * p["ts_pct"] for p in pool) / total
+        w = 5 / (5 + ROOKIE_BLEND_K)
+        self.assertAlmostEqual(self.by_name["Test Rookie"].ts_pct, w * r["ts_pct"] + (1 - w) * league_ts, places=6)
+
+    def test_one_game_rookie_is_mostly_the_league_baseline_not_that_one_game(self):
+        pool = self._league_pool()
+        total = sum(p["games_played"] * p["mpg"] for p in pool)
+        baseline = sum(p["games_played"] * p["ppg"] for p in pool) / total * self.rookie["mpg"]
+        w = 1 / (1 + ROOKIE_BLEND_K)
+        got = self.by_name["Test Rookie 1g"]
+        self.assertAlmostEqual(got.blend_weight, w, places=9)
+        self.assertAlmostEqual(got.ppg, w * 30.0 + (1 - w) * baseline, places=6)
+        self.assertLess(abs(got.ppg - baseline), abs(got.ppg - 30.0))   # nearer the baseline than the one big game
+
+    def test_rookie_shot_zones_start_from_the_league_average_profile(self):
+        zones = list(_prior("shot_zones_prev.json").values())
+        league_rim = sum(z["at_rim_freq"] for z in zones) / len(zones)
+        w = self.by_name["Test Rookie"].blend_weight
+        z = self.an._shot_zone_for(self.by_name["Test Rookie"])
+        self.assertAlmostEqual(z["at_rim_freq"], w * 0.9 + (1 - w) * league_rim, places=9)
 
     # ---- game logs, shot zones ----
     def test_game_logs_are_last_season_then_this_season_in_order(self):

@@ -10,6 +10,11 @@ PRIOR_SEASON_YEAR = 2026
 # players' do.
 PLAYER_BLEND_K = 10
 TEAM_BLEND_K = 15
+# A player with no last-season row (a rookie, or someone back from overseas) is
+# pulled toward a league-average player with their own minutes instead. That
+# starting point says much less about them than a veteran's own last season does,
+# so the new season is trusted sooner: K=5 rather than 10.
+ROOKIE_BLEND_K = 5
 DATABALLR_TEAM_URL = "https://api.databallr.com/v1/nba/teams/stats"
 ESPN_OPPONENT_STATS_URL = "https://www.espn.com/nba/stats/team/_/view/opponent"
 ESPN_TEAMS_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"

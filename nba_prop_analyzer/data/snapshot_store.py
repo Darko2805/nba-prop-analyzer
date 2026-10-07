@@ -96,6 +96,13 @@ def load_shot_zone(player_name: str, prev: bool = False) -> Optional[dict]:
     return _shot_zones_cache[prev].get(player_name)
 
 
+def load_shot_zones(prev: bool = False) -> dict:
+    """Every player's shot-zone profile for the season (name -> profile)."""
+    if prev not in _shot_zones_cache:
+        _shot_zones_cache[prev] = _load_json(_name("shot_zones.json", prev), {})
+    return _shot_zones_cache[prev]
+
+
 def save_game_logs(data: dict, prev: bool = False) -> None:
     """data: player name -> list[GameLog]"""
     serializable = {name: [asdict(g) for g in games] for name, games in data.items()}
