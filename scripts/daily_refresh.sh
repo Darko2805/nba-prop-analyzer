@@ -26,7 +26,11 @@ TODAY=$(date +%Y-%m-%d)
 
 # ---------------------------------------------------------------- the work ---
 
-fail() { echo "RESULT: FAILED -- $1"; echo "$FINISHED"; exit 1; }
+# A silent clock is not a reliable one: anything but a clean run pops a macOS
+# notification (ignored if there is no desktop session to show it in).
+notify() { osascript -e "display notification \"$(echo "$1" | tr -d '"\\' | cut -c1-200)\" with title \"matchupedge daily refresh\"" >/dev/null 2>&1 || true; }
+
+fail() { echo "RESULT: FAILED -- $1"; notify "FAILED -- $1"; echo "$FINISHED"; exit 1; }
 
 # Commit + push whatever changed under the snapshot dir. The identity is passed
 # per command (never written to git config) because this machine's global git
@@ -88,7 +92,7 @@ run() {
     PROBLEMS="$PROBLEMS | track record key file missing ($KEYFILE)"
   fi
 
-  if [ -z "$PROBLEMS" ]; then echo "RESULT: OK"; else echo "RESULT: OK WITH PROBLEMS${PROBLEMS}"; fi
+  if [ -z "$PROBLEMS" ]; then echo "RESULT: OK"; else echo "RESULT: OK WITH PROBLEMS${PROBLEMS}"; notify "OK with problems${PROBLEMS}"; fi
   echo "$FINISHED $(date '+%H:%M:%S')"
 }
 
@@ -108,7 +112,12 @@ wait_for_finish() {
 }
 
 case "${1:-}" in
-  --run) run ;;
+  --run)
+    if [ -f "$PIDFILE" ] && [ "$(cat "$PIDFILE")" != "$$" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+      echo "another run is already in progress; not starting a second one"; exit 0
+    fi
+    echo $$ > "$PIDFILE"
+    run ;;
   --wait) wait_for_finish ;;
   *)
     if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
