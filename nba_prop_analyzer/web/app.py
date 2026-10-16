@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import datetime
+import secrets
 import threading
 import concurrent.futures
 import requests
@@ -436,6 +437,19 @@ def inject_user():
     return {"current_user": auth.current_user(), "auth_configured": auth.is_configured()}
 
 
+# Random per-browser token for anonymous visitors, used only to tell people on a
+# shared IP apart when enforcing the free daily allowance (see usage.py).
+ANON_COOKIE = "me_visitor"
+_VISITOR_TOKEN = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+
+
+def _set_visitor_cookie(resp, token):
+    if token:
+        resp.set_cookie(ANON_COOKIE, token, max_age=30 * 24 * 3600, httponly=True,
+                        samesite="Lax", secure=_PRODUCTION)
+    return resp
+
+
 SITE_URL = os.environ.get("SITE_URL", "https://matchupedge.com").strip().rstrip("/")
 
 
@@ -719,15 +733,21 @@ def analyze():
         return jsonify({"error": "Please fill in all fields with valid values."}), 400
 
     # Tier gating: paid is unlimited, signed-up "free" gets a 5-analysis
-    # batch every 4 days, anonymous gets 1/day by IP. Checked read-only
+    # batch every 4 days, anonymous gets 3/day, blocked only when both IP and browser are used up. Checked read-only
     # here so a validation/analysis failure below doesn't burn someone's
     # quota; the matching record_* call only runs after a real success.
     user = auth.current_user()
     client_ip = usage.get_client_ip(request)
+    visitor_token = request.cookies.get(ANON_COOKIE, "")
+    new_visitor_token = None
     if user is None:
-        allowed, limit_msg = usage.check_anon_usage(client_ip)
+        if not _VISITOR_TOKEN.match(visitor_token):
+            visitor_token = new_visitor_token = secrets.token_urlsafe(16)
+        allowed, limit_msg = usage.check_anon_usage(client_ip, usage.visitor_key(visitor_token))
         if not allowed:
-            return jsonify({"error": limit_msg, "code": "usage_limit_anon"}), 429
+            return _set_visitor_cookie(
+                jsonify({"error": limit_msg, "code": "usage_limit_anon"}), new_visitor_token
+            ), 429
     elif user.get("tier") != "paid":
         allowed, limit_msg = usage.check_signup_usage(user["id"])
         if not allowed:
@@ -876,11 +896,11 @@ def analyze():
         }
 
     if user is None:
-        usage.record_anon_usage(client_ip)
+        usage.record_anon_usage(client_ip, usage.visitor_key(visitor_token))
     elif user.get("tier") != "paid":
         usage.record_signup_usage(user["id"])
 
-    return jsonify(result)
+    return _set_visitor_cookie(jsonify(result), new_visitor_token)
 
 
 @app.route("/auth/signup", methods=["POST"])

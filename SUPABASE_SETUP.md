@@ -28,7 +28,7 @@ create policy "Users can view own profile"
 ## 2. Add usage-tracking columns/table (tier gating)
 
 Run this in the Supabase SQL Editor to support the three access tiers
-(anonymous: 1/day by IP, signed-up "free": 5 every 4 days, "paid": unlimited):
+(anonymous: 3/day by IP, signed-up "free": 5 every 4 days, "paid": unlimited):
 
 ```sql
 alter table public.profiles add column if not exists usage_count integer not null default 0;

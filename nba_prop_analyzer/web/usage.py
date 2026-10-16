@@ -28,7 +28,7 @@ import os
 import threading
 import requests
 from datetime import datetime, timezone, timedelta
-from flask import Request
+from flask import Request, g
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -45,7 +45,7 @@ _IP_HASH_KEY = (
 ).encode()
 ANON_RETENTION_DAYS = 7
 
-ANON_DAILY_LIMIT = 1
+ANON_DAILY_LIMIT = 3
 FREE_TIER_BATCH_LIMIT = 5
 FREE_TIER_RESET_DAYS = 4
 
@@ -79,40 +79,90 @@ def _today_utc() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
-def check_anon_usage(ip: str) -> tuple[bool, str | None]:
-    """Read-only check: has this IP already used today's single free analysis?"""
+def visitor_key(token: str | None) -> str | None:
+    """
+    Pseudonymous key for the random per-browser token the site hands to anonymous
+    visitors (see ANON_COOKIE in app.py). Hashed like the IP, and prefixed so it
+    can never collide with an IP key in the same table.
+    """
+    if not token:
+        return None
+    return "c" + hmac.new(_IP_HASH_KEY, token.encode(), hashlib.sha256).hexdigest()[:31]
+
+
+def _slots(key: str) -> list[str]:
+    """
+    One identifier can use up to ANON_DAILY_LIMIT analyses a day. The anon_usage
+    table holds one (key, date) row per key, so each identifier gets that many
+    slot keys (`<key>:0`, `<key>:1`, ...) and "uses today" is how many of them
+    carry today's date. No schema change needed to raise the limit.
+    """
+    return [f"{key}:{i}" for i in range(ANON_DAILY_LIMIT)]
+
+
+def _used_today(ip: str, visitor: str | None) -> tuple[set[str], set[str]] | None:
+    """(IP slots, browser slots) already dated today, or None if the lookup failed."""
+    ip_slots = _slots(ip)
+    visitor_slots = _slots(visitor) if visitor else []
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/anon_usage",
+        headers=_headers(),
+        params={"ip": f"in.({','.join(ip_slots + visitor_slots)})", "select": "ip,used_date"},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    if resp.status_code >= 400:
+        print(f"[usage] anon_usage GET failed {resp.status_code}: {resp.text}")
+        return None
+    today = _today_utc()
+    used = {row["ip"] for row in resp.json() if row.get("used_date") == today}
+    return used & set(ip_slots), used & set(visitor_slots)
+
+
+def check_anon_usage(ip: str, visitor: str | None = None) -> tuple[bool, str | None]:
+    """
+    Read-only check. A visitor is blocked only when BOTH their IP and their
+    browser have used up the day's allowance: an IP shared by a whole office or
+    mobile carrier runs out for everyone on it, but each person's own browser
+    still has its own allowance. (Clearing cookies gets a fresh browser
+    allowance -- accepted, this is a nudge to sign up, not a security wall.)
+    """
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         print("[usage] check_anon_usage: Supabase not configured, failing open")
         return True, None  # auth/usage tracking not configured -- fail open
 
-    resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/anon_usage",
-        headers=_headers(),
-        params={"ip": f"eq.{ip}", "select": "used_date"},
-        timeout=_REQUEST_TIMEOUT,
-    )
-    if resp.status_code >= 400:
-        print(f"[usage] check_anon_usage GET failed {resp.status_code}: {resp.text}")
+    used = _used_today(ip, visitor)
+    if used is None:
         return True, None  # fail open rather than block real users over a DB hiccup
-
-    rows = resp.json()
-    if rows and rows[0].get("used_date") == _today_utc():
+    g.anon_slots_used = used  # saves record_anon_usage a second lookup in the same request
+    ip_used, visitor_used = used
+    if len(ip_used) >= ANON_DAILY_LIMIT and visitor and len(visitor_used) >= ANON_DAILY_LIMIT:
         return False, (
-            "You've used today's free analysis. Sign up free for 5 analyses "
-            "every few days, or come back tomorrow for another single look."
+            f"You've used today's {ANON_DAILY_LIMIT} free analyses. Sign up free for 5 analyses "
+            "every few days, or come back tomorrow for more."
         )
     return True, None
 
 
-def record_anon_usage(ip: str) -> None:
+def record_anon_usage(ip: str, visitor: str | None = None) -> None:
     """Called only after a successful analysis -- a failed/invalid request shouldn't burn the day's use."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         print("[usage] record_anon_usage: Supabase not configured, skipping")
         return
+    used = getattr(g, "anon_slots_used", None) or _used_today(ip, visitor) or (set(), set())
+    stamp = {"used_date": _today_utc(), "updated_at": datetime.now(timezone.utc).isoformat()}
+    rows = []
+    for key, already in ((ip, used[0]), (visitor, used[1])):
+        if not key:
+            continue
+        free = [s for s in _slots(key) if s not in already]
+        if free:
+            rows.append({"ip": free[0], **stamp})
+    if not rows:
+        return  # both identifiers already at the limit; nothing more to record
     resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/anon_usage",
         headers={**_headers(), "Prefer": "resolution=merge-duplicates"},
-        json={"ip": ip, "used_date": _today_utc(), "updated_at": datetime.now(timezone.utc).isoformat()},
+        json=rows,
         timeout=_REQUEST_TIMEOUT,
     )
     if resp.status_code >= 400:

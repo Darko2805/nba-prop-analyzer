@@ -16,13 +16,13 @@
 <ul>
   <li><strong>Account details</strong> &mdash; your name and email address, your plan (free or paid), and counters for the free-tier allowance (how many analyses you have used and when the current allowance window started). Your password is handled by our authentication provider, which stores only a hash of it; we never see or store the plain-text password.</li>
   <li><strong>Sign-up record</strong> &mdash; that you confirmed you are {{ min_age }} or older, which version of the Terms and this policy you accepted and when, and whether you chose to receive product updates.</li>
-  <li><strong>Anonymous visitors</strong> &mdash; to enforce one free analysis per day we store a salted, one-way hash of your IP address together with the date you last used it. We do not store your IP address in that record, and those records are deleted after about a week.</li>
+  <li><strong>Anonymous visitors</strong> &mdash; to enforce up to three free analyses per day we store a salted, one-way hash of your IP address, and a salted, one-way hash of the random token in your browser cookie (see Cookies below), each together with the date of each use. A free analysis is refused only when both have already used their three. We do not store your IP address in that record, and those records are deleted after about a week.</li>
   <li><strong>The analyses you run</strong> &mdash; the player, opponent, prop and line you enter are used to produce your result. We do not keep a history of them against your identity.</li>
   <li><strong>Hosting logs</strong> &mdash; our hosting provider automatically records standard request information (such as IP address, browser type and the page requested) for security and operations. We do not use it to profile visitors.</li>
 </ul>
 
 <h2>3. Cookies and tracking</h2>
-<p>We set a single cookie, and only when you sign in. It keeps you logged in, is signed and HttpOnly, and is strictly necessary for the site to work, so we do not show a cookie banner. We do not use advertising cookies, analytics trackers, fingerprinting, or session-recording tools. If that changes we will update this policy first and use a privacy-respecting option.</p>
+<p>We set at most two cookies, both strictly necessary for the site to work, so we do not show a cookie banner. A sign-in cookie keeps you logged in; it is signed and HttpOnly and is set only when you sign in. If you use the tool without an account, a second HttpOnly cookie holds a random token (no name, email or IP address) for up to 30 days; we store only a one-way hash of it, together with the date, so that people sharing one network (an office or a mobile carrier) each get their own free daily allowance. We do not use advertising cookies, analytics trackers, fingerprinting, or session-recording tools. If that changes we will update this policy first and use a privacy-respecting option.</p>
 <p>We host our fonts, team logos and player images ourselves, so your browser does not contact Google or ESPN when you load a page.</p>
 
 <h2>4. Who else handles your data</h2>
