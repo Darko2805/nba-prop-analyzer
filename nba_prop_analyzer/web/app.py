@@ -424,6 +424,8 @@ def add_security_headers(resp):
     resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     if _PRODUCTION:
         resp.headers.setdefault("Strict-Transport-Security", "max-age=15552000")
+    if request.path.startswith("/static/fonts/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
 
 
@@ -1000,6 +1002,27 @@ def auth_confirm_signup():
         return jsonify({"error": str(e)}), 400
 
     return jsonify({"name": profile.get("name"), "tier": profile.get("tier")})
+
+
+def _prewarm_caches() -> None:
+    """
+    Fill the ESPN-backed caches (tonight's slate, injuries, back-to-backs, the
+    two-week schedule load) in the background right after boot, so the first
+    visitor after a deploy -- which happens every morning -- doesn't pay ~5 s
+    of ESPN round trips while everyone else queues behind them.
+    """
+    try:
+        with app.test_request_context("/"):
+            index()
+        fetch_back_to_back_teams()
+        fetch_three_in_four_teams()
+        fetch_injuries()
+        print("Caches pre-warmed.")
+    except Exception as e:
+        print(f"Pre-warm skipped ({e})")
+
+
+threading.Thread(target=_prewarm_caches, daemon=True, name="prewarm").start()
 
 
 if __name__ == "__main__":

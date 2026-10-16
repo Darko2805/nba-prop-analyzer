@@ -209,6 +209,23 @@ def espn_headshot_url(espn_player_id: str) -> str:
     return f"/img/player/{espn_player_id}.png"
 
 
+_SETTLED_TTL = 7 * 24 * 3600   # a finished day's scoreboard never changes
+_FAILURE_TTL = 60              # retry a failed lookup soon; never remember it for long
+
+
+def _scoreboard_ttl(date, ok: bool = True):
+    """
+    How long to remember one day's ESPN scoreboard. Days at least a full day
+    old are settled (the margin is a day because West Coast games can end
+    after midnight Eastern), so they are kept for a week instead of re-fetched
+    every hour; recent days keep the default lifetime so live results update.
+    A failed lookup is only held briefly.
+    """
+    if not ok:
+        return _FAILURE_TTL
+    return _SETTLED_TTL if date < et_date() - datetime.timedelta(days=1) else None
+
+
 def _fetch_teams_playing_on(date) -> set:
     """
     Team abbreviations with a game on the given date, from ESPN's public
@@ -225,6 +242,7 @@ def _fetch_teams_playing_on(date) -> set:
         return cached
 
     teams = set()
+    ok = True
     try:
         resp = requests.get(
             f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}",
@@ -239,9 +257,9 @@ def _fetch_teams_playing_on(date) -> set:
                 if abbr:
                     teams.add(abbr)
     except Exception:
-        teams = set()
+        teams, ok = set(), False
 
-    cache.set(cache_key, teams)
+    cache.set(cache_key, teams, _scoreboard_ttl(date, ok))
     return teams
 
 
@@ -351,7 +369,7 @@ def fetch_games_on(date) -> list | None:
             g.pop("_sort")
     except Exception:
         return None
-    cache.set(cache_key, games)
+    cache.set(cache_key, games, _scoreboard_ttl(date))
     return games
 
 
@@ -376,6 +394,7 @@ def _fetch_team_games_on(date) -> dict:
         return cached
 
     games = {}
+    ok = True
     try:
         resp = requests.get(
             f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={date_str}",
@@ -409,9 +428,9 @@ def _fetch_team_games_on(date) -> dict:
                         "margin": margin,
                     }
     except Exception:
-        games = {}
+        games, ok = {}, False
 
-    cache.set(cache_key, games)
+    cache.set(cache_key, games, _scoreboard_ttl(date, ok))
     return games
 
 
