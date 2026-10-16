@@ -28,7 +28,7 @@ from nba_prop_analyzer.analysis.fatigue_watch import compute_fatigue_scores
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
 from nba_prop_analyzer.data import snapshot_store, news, blog, track_record
-from nba_prop_analyzer.web import auth, usage
+from nba_prop_analyzer.web import auth, notify, usage
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # A handful of recognizable stars to power the homepage's "Popular Bets"
@@ -868,6 +868,7 @@ def auth_signup():
     except auth.AuthError as e:
         return jsonify({"error": str(e), "error_code": e.code}), 502
 
+    notify.new_signup(email, name, consent["marketing_opt_in"])
     return jsonify({"message": f"We emailed a confirmation link to {email}. Open it on this device to activate your account."})
 
 
