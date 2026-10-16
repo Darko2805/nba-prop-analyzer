@@ -426,12 +426,24 @@ def add_security_headers(resp):
         resp.headers.setdefault("Strict-Transport-Security", "max-age=15552000")
     if request.path.startswith("/static/fonts/"):
         resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif (request.path.startswith("/static/") or request.path == "/favicon.ico") and request.path.rsplit(".", 1)[-1] in ("png", "svg", "ico"):
+        resp.headers["Cache-Control"] = "public, max-age=86400"
     return resp
 
 
 @app.context_processor
 def inject_user():
     return {"current_user": auth.current_user(), "auth_configured": auth.is_configured()}
+
+
+SITE_URL = os.environ.get("SITE_URL", "https://matchupedge.com").strip().rstrip("/")
+
+
+@app.context_processor
+def inject_seo():
+    # Canonical URLs ignore query strings and the host the request arrived on
+    # (e.g. a *.up.railway.app alias), so search engines see one address per page.
+    return {"site_url": SITE_URL, "canonical_url": SITE_URL + request.path}
 
 
 @app.context_processor
@@ -534,6 +546,39 @@ def data_version():
     })
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /auth/\n"
+        "Disallow: /internal/\n"
+        "Disallow: /analyze\n"
+        f"\nSitemap: {SITE_URL}/sitemap.xml\n"
+    )
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    from xml.sax.saxutils import escape
+    urls = [(f"{SITE_URL}{path}", None) for path in ("/", "/about", "/blog", "/track-record", "/privacy", "/terms")]
+    urls += [(f"{SITE_URL}/blog/{p.slug}", p.date or None) for p in blog.list_posts()]
+    rows = "".join(
+        f"<url><loc>{escape(loc)}</loc>" + (f"<lastmod>{escape(mod)}</lastmod>" if mod else "") + "</url>"
+        for loc, mod in urls
+    )
+    xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{rows}</urlset>'
+    return Response(xml, mimetype="application/xml")
+
+
+@app.route("/favicon.ico")
+def favicon_ico():
+    # Browsers request this path by default, regardless of any <link rel="icon">.
+    return app.send_static_file("favicon.ico")
 
 
 @app.route("/about")

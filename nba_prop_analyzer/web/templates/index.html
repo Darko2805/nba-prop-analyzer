@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBA Prop Analyzer</title>
+  {% set seo_title = "matchupedge — NBA Prop Analyzer & Matchup Breakdown" %}
+  {% set seo_desc = "Pick any NBA player, prop and opponent and see which factors move the projection. Each factor is ranked against the whole league and the reasoning is shown." %}
+  {% set seo_ld = [{"@context": "https://schema.org", "@type": "WebSite", "name": "matchupedge", "url": site_url ~ "/"}, {"@context": "https://schema.org", "@type": "WebApplication", "name": "matchupedge", "url": site_url ~ "/", "description": seo_desc, "applicationCategory": "SportsApplication", "operatingSystem": "Any"}] %}
+  {% include "_head_meta.html" %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>

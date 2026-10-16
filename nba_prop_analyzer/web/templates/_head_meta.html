@@ -1,0 +1,30 @@
+{#- Shared <head> metadata. The including template sets:
+      seo_title (required), seo_desc (required), seo_type ('website' | 'article'),
+      seo_noindex (true for pages that shouldn't be in search), seo_ld (JSON-LD dict/list). -#}
+{%- set _type = seo_type or 'website' -%}
+{%- set _url = canonical_url -%}
+{%- set _img = site_url ~ '/static/og-image.png' -%}
+<title>{{ seo_title }}</title>
+<meta name="description" content="{{ seo_desc }}">
+{% if seo_noindex %}<meta name="robots" content="noindex, nofollow">
+{% else %}<link rel="canonical" href="{{ _url }}">
+{% endif -%}
+<meta name="theme-color" content="#14171f">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta property="og:site_name" content="matchupedge">
+<meta property="og:type" content="{{ _type }}">
+<meta property="og:title" content="{{ seo_title }}">
+<meta property="og:description" content="{{ seo_desc }}">
+<meta property="og:url" content="{{ _url }}">
+<meta property="og:image" content="{{ _img }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="matchupedge: see which factor moves the number">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ seo_title }}">
+<meta name="twitter:description" content="{{ seo_desc }}">
+<meta name="twitter:image" content="{{ _img }}">
+{% if seo_ld %}<script type="application/ld+json">{{ seo_ld|tojson }}</script>
+{% endif %}

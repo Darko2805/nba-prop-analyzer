@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ post.title }} — NBA Prop Analyzer</title>
+  {% set seo_title = post.title ~ " — matchupedge" %}
+  {% set seo_desc = post.summary or "A matchupedge post on NBA player-prop analysis." %}
+  {% set seo_type = "article" %}
+  {% set seo_ld = {"@context": "https://schema.org", "@type": "Article", "headline": post.title, "description": seo_desc, "datePublished": post.date, "mainEntityOfPage": canonical_url, "image": site_url ~ "/static/og-image.png", "publisher": {"@type": "Organization", "name": "matchupedge", "url": site_url ~ "/"}} %}
+  {% include "_head_meta.html" %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>

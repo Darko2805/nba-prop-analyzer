@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}{% endblock %} — matchupedge</title>
+  {% set seo_title %}{% block title %}{% endblock %} — matchupedge{% endset %}
+  {% set seo_desc %}{% block description %}Legal information for matchupedge.{% endblock %}{% endset %}
+  {% include "_head_meta.html" %}
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
