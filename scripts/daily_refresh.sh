@@ -84,7 +84,14 @@ run() {
   if [ -r "$KEYFILE" ]; then
     key=$(cat "$KEYFILE")
     score=$(curl -s "$SITE/internal/score-track-record?key=$key")
-    record=$(curl -s "$SITE/internal/snapshot-track-record?key=$key")
+    # Only a genuine PRE-GAME projection may enter the track record. A catch-up run that
+    # starts after noon ET (18:00 CEST) could follow an early tip-off, so it grades but does
+    # not record -- that day's record has a gap, which is honest; a late "prediction" is not.
+    if [ "$((10#$(TZ=America/New_York date +%H)))" -ge 12 ]; then
+      record="skipped (after noon ET, too late for a pre-game projection)"
+    else
+      record=$(curl -s "$SITE/internal/snapshot-track-record?key=$key")
+    fi
     echo "  graded:   $score"
     echo "  recorded: $record"
     case "$score$record" in *"Not found"*) PROBLEMS="$PROBLEMS | TRACK_RECORD_KEY is not set on Railway (track record not running)";; esac
@@ -92,7 +99,9 @@ run() {
     PROBLEMS="$PROBLEMS | track record key file missing ($KEYFILE)"
   fi
 
-  if [ -z "$PROBLEMS" ]; then echo "RESULT: OK"; else echo "RESULT: OK WITH PROBLEMS${PROBLEMS}"; notify "OK with problems${PROBLEMS}"; fi
+  # The launch agent checks this marker so a later trigger (11:45 retry, start-up catch-up)
+  # does nothing once today's refresh has finished cleanly.
+  if [ -z "$PROBLEMS" ]; then echo "RESULT: OK"; date +%F > "$HOME/.matchupedge_last_ok"; else echo "RESULT: OK WITH PROBLEMS${PROBLEMS}"; notify "OK with problems${PROBLEMS}"; fi
   echo "$FINISHED $(date '+%H:%M:%S')"
 }
 
