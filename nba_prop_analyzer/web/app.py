@@ -29,7 +29,7 @@ from nba_prop_analyzer.analysis.fatigue_watch import compute_fatigue_scores
 from nba_prop_analyzer.data.bbref_scraper import get_stat_from_games
 from nba_prop_analyzer.data.databallr_client import find_player
 from nba_prop_analyzer.data import snapshot_store, news, blog, track_record
-from nba_prop_analyzer.web import auth, notify, usage
+from nba_prop_analyzer.web import auth, notify, player_lookup, usage
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # A handful of recognizable stars to power the homepage's "Popular Bets"
@@ -685,33 +685,91 @@ def api_news():
         return jsonify({"items": [], "error": str(e)}), 502
 
 
+def _suggested_line(player, prop_type: str):
+    """Nearest 0.5 of the player's season average for this prop (the same baseline
+    convention as Quick Looks/Biggest Edges), or None when there's no real average."""
+    if prop_type in COMBO_PROP_TYPES:
+        baseline = sum(getattr(player, _PROP_BASELINE_ATTR[p], 0) for p in COMBO_PROP_TYPES[prop_type])
+    else:
+        baseline = getattr(player, _PROP_BASELINE_ATTR.get(prop_type, "ppg"), 0)
+    return _round_to_half(baseline) if baseline > 0 else None
+
+
 @app.route("/api/suggest-line")
 def api_suggest_line():
-    # Backs the Analyze form's auto-filled Line field: a real season-average
-    # starting point for whatever player/prop is currently selected, not a
-    # blank box -- the user can still type over it before running. Same
-    # baseline convention as Quick Looks/Biggest Edges, just looked up live
-    # for any player instead of a fixed roster.
+    # Backs the Analyze form's auto-filled Line field when the prop type changes:
+    # a real season-average starting point, not a blank box. The user can still
+    # type over it before running.
     if not analyzer.is_ready():
         return jsonify({"line": None})
 
     name = (request.args.get("player") or "").strip()
     prop_type = (request.args.get("prop_type") or "points").strip()
-    if not name:
-        return jsonify({"line": None})
-
-    player = find_player(name, analyzer.players)
+    player = find_player(name, analyzer.players) if name else None
     if not player:
         return jsonify({"line": None})
+    return jsonify({"line": _suggested_line(player, prop_type)})
 
-    if prop_type in COMBO_PROP_TYPES:
-        baseline = sum(getattr(player, _PROP_BASELINE_ATTR[p], 0) for p in COMBO_PROP_TYPES[prop_type])
+
+@app.route("/api/players")
+def api_players():
+    # Type-ahead for the player box: any fragment of a first or last name.
+    # Pure in-memory matching, so it is cheap enough to call on every keystroke.
+    if not analyzer.is_ready():
+        return jsonify({"players": []})
+    q = (request.args.get("q") or "")[:40]
+    found = player_lookup.search_players(analyzer.players, q)
+    return jsonify({"players": [
+        {"name": p.name, "team": normalize_team(p.team_abbr) or p.team_abbr, "ppg": round(p.ppg, 1)}
+        for p in found
+    ]})
+
+
+@app.route("/api/player-context")
+def api_player_context():
+    # What the Analyze form fills in once a player is chosen: their next game that
+    # hasn't finished (tonight's, or whatever is coming up), and a points line at
+    # their current average to start from. exact=1 only accepts an exact name, so
+    # a half-typed name is never silently swapped for someone else.
+    if not analyzer.is_ready():
+        return jsonify({"found": False})
+
+    name = (request.args.get("player") or "").strip()
+    prop_type = (request.args.get("prop_type") or "points").strip()
+    if request.args.get("exact") == "1":
+        player = player_lookup.exact_player(analyzer.players, name)
     else:
-        baseline = getattr(player, _PROP_BASELINE_ATTR.get(prop_type, "ppg"), 0)
+        player = find_player(name, analyzer.players) if name else None
+    if not player:
+        return jsonify({"found": False})
 
-    if baseline <= 0:
-        return jsonify({"line": None})
-    return jsonify({"line": _round_to_half(baseline)})
+    today = tonight_date()
+    days = [today + datetime.timedelta(days=i) for i in range(8)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(days)) as pool:
+        slates = dict(zip(days, pool.map(fetch_games_on, days)))
+    team = normalize_team(player.team_abbr) or player.team_abbr
+    game, schedule_ok = player_lookup.next_game(team, slates, normalize_team)
+
+    try:
+        injury = (fetch_injuries() or {}).get(player.name) or {}
+    except Exception:
+        injury = {}
+
+    return jsonify({
+        "found": True,
+        "player": player.name,
+        "team": team,
+        "prop_type": prop_type,
+        "line": _suggested_line(player, prop_type),
+        "average": round(player.ppg, 1) if prop_type == "points" else None,
+        "game": None if game is None else {
+            "opponent": game["opponent"],
+            "home": game["home"],
+            "label": player_lookup.matchup_label(game, today),
+        },
+        "schedule": "ok" if game else ("none" if schedule_ok else "unavailable"),
+        "injury": injury.get("status"),
+    })
 
 
 @app.route("/analyze", methods=["POST"])

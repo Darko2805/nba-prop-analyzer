@@ -108,9 +108,15 @@
   <div class="form-card">
     <form id="analyzeForm">
       <div class="form-row">
-        <div class="form-group">
-          <label>Player Name</label>
-          <input type="text" id="player" placeholder="e.g. Stephen Curry" required>
+        <div class="form-group player-group">
+          <label for="player">Player Name</label>
+          <div class="combo">
+            <input type="text" id="player" placeholder="Start typing a first or last name" required
+                   autocomplete="off" autocapitalize="words" spellcheck="false"
+                   role="combobox" aria-autocomplete="list" aria-expanded="false"
+                   aria-controls="playerList" aria-haspopup="listbox">
+            <ul class="combo-list" id="playerList" role="listbox" aria-label="Matching players" hidden></ul>
+          </div>
         </div>
         <div class="form-group">
           <label>Opponent</label>
@@ -143,6 +149,7 @@
           <input type="number" id="line" step="0.5" min="0.5" placeholder="28.5" required>
         </div>
       </div>
+      <p class="matchup-note" id="matchupNote" aria-live="polite"></p>
       <button type="submit" class="btn" id="submitBtn">Run the matchup</button>
     </form>
   </div>
@@ -695,30 +702,191 @@ const results = document.getElementById('results');
 const errorMsg = document.getElementById('errorMsg');
 const submitBtn = document.getElementById('submitBtn');
 
-// Auto-fill the Line field with a real season-average starting point
-// (nearest 0.5, same convention as Quick Looks/Biggest Edges) whenever a
-// player is entered or the prop type changes -- never leaves it blank
-// once a real player is recognized, but the field stays fully editable
-// so the user can still type over it with their own line before running.
+// Player search + starting values. Typing any part of a first or last name
+// lists matching players; picking one fills in their next game (tonight's, or
+// whatever is coming up), sets the prop to Points and the line to their current
+// average. Everything stays editable -- these are only a place to start.
 const playerInput = document.getElementById('player');
+const playerList = document.getElementById('playerList');
 const propTypeSelect = document.getElementById('prop_type');
 const lineInput = document.getElementById('line');
+const opponentSelect = document.getElementById('opponent');
+const matchupNote = document.getElementById('matchupNote');
 
-async function suggestLine() {
+let suggestions = [];
+let activeIdx = -1;
+let searchTimer = null;
+let searchCtl = null;
+let contextSeq = 0;
+let filledFor = '';   // the player whose matchup/line we last filled in
+
+function setNote(text, cls) {
+  matchupNote.textContent = text || '';
+  matchupNote.className = 'matchup-note' + (cls ? ' ' + cls : '');
+}
+
+function closeList() {
+  playerList.hidden = true;
+  playerInput.setAttribute('aria-expanded', 'false');
+  playerInput.removeAttribute('aria-activedescendant');
+  activeIdx = -1;
+}
+
+function setActive(i) {
+  const items = playerList.children;
+  if (activeIdx >= 0 && items[activeIdx]) {
+    items[activeIdx].classList.remove('active');
+    items[activeIdx].setAttribute('aria-selected', 'false');
+  }
+  activeIdx = i;
+  if (i >= 0 && items[i]) {
+    items[i].classList.add('active');
+    items[i].setAttribute('aria-selected', 'true');
+    items[i].scrollIntoView({ block: 'nearest' });
+    playerInput.setAttribute('aria-activedescendant', items[i].id);
+  } else {
+    playerInput.removeAttribute('aria-activedescendant');
+  }
+}
+
+function renderList(items, query) {
+  playerList.textContent = '';
+  suggestions = items;
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'combo-empty';
+    li.textContent = 'No player found. Check the spelling.';
+    playerList.appendChild(li);
+  }
+  items.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'combo-item';
+    li.id = 'player-opt-' + i;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', 'false');
+
+    const name = document.createElement('span');
+    name.className = 'combo-name';
+    const at = p.name.toLowerCase().indexOf(query.toLowerCase());
+    if (at >= 0) {
+      name.appendChild(document.createTextNode(p.name.slice(0, at)));
+      const b = document.createElement('b');
+      b.textContent = p.name.slice(at, at + query.length);
+      name.appendChild(b);
+      name.appendChild(document.createTextNode(p.name.slice(at + query.length)));
+    } else {
+      name.textContent = p.name;
+    }
+    const meta = document.createElement('span');
+    meta.className = 'combo-meta';
+    meta.textContent = p.team + ' · ' + p.ppg.toFixed(1) + ' PPG';
+    li.append(name, meta);
+
+    // mousedown (not click) so it lands before the input's blur closes the list
+    li.addEventListener('mousedown', (e) => { e.preventDefault(); pickPlayer(p.name); });
+    playerList.appendChild(li);
+  });
+  playerList.hidden = false;
+  playerInput.setAttribute('aria-expanded', 'true');
+  setActive(items.length ? 0 : -1);
+}
+
+async function searchPlayers() {
+  const q = playerInput.value.trim();
+  if (q.length < 2) { closeList(); return; }
+  if (searchCtl) searchCtl.abort();
+  searchCtl = new AbortController();
+  try {
+    const resp = await fetch('/api/players?q=' + encodeURIComponent(q), { signal: searchCtl.signal });
+    const data = await resp.json();
+    renderList(data.players || [], q);
+  } catch (e) {
+    // aborted by a newer keystroke, or offline: leave the box as it is
+  }
+}
+
+// Fills opponent / prop / line for a player. `pick` = chosen from the list (sets Points);
+// otherwise this is a typed name, so only an exact match is accepted and the prop is left alone.
+async function fillFor(name, pick) {
+  const seq = ++contextSeq;
+  const prop = pick ? 'points' : propTypeSelect.value;
+  setNote('Finding the next game…', 'busy');
+  try {
+    const url = '/api/player-context?player=' + encodeURIComponent(name)
+      + '&prop_type=' + encodeURIComponent(prop) + (pick ? '' : '&exact=1');
+    const data = await (await fetch(url)).json();
+    if (seq !== contextSeq) return;            // a newer pick/keystroke superseded this one
+    if (!data.found) { setNote(''); return; }
+    filledFor = data.player;
+    playerInput.value = data.player;
+    if (pick) propTypeSelect.value = 'points';
+    if (data.line !== null && data.line !== undefined) lineInput.value = data.line;
+
+    const bits = [];
+    if (data.game) {
+      if ([...opponentSelect.options].some(o => o.value === data.game.opponent)) opponentSelect.value = data.game.opponent;
+      bits.push('Next game: ' + data.game.label);
+    } else if (data.schedule === 'unavailable') {
+      bits.push("Couldn't load the schedule. Pick the opponent yourself.");
+    } else {
+      bits.push('No game in the next week. Pick an opponent.');
+    }
+    if (data.average !== null && data.average !== undefined) bits.push('Season average: ' + data.average.toFixed(1) + ' PPG');
+    if (data.injury) bits.push('Injury report: ' + data.injury);
+    setNote(bits.join('\n'), data.injury ? 'warn' : '');
+  } catch (e) {
+    if (seq === contextSeq) setNote('');       // a failed suggestion is not worth an error banner
+  }
+}
+
+function pickPlayer(name) {
+  playerInput.value = name;
+  closeList();
+  fillFor(name, true);
+}
+
+playerInput.addEventListener('input', () => {
+  filledFor = '';
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(searchPlayers, 120);
+});
+playerInput.addEventListener('keydown', (e) => {
+  const open = !playerList.hidden && suggestions.length > 0;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!open) { if (playerInput.value.trim().length >= 2) searchPlayers(); return; }
+    e.preventDefault();
+    const n = suggestions.length;
+    setActive(e.key === 'ArrowDown' ? (activeIdx + 1) % n : (activeIdx - 1 + n) % n);
+  } else if (e.key === 'Enter' && open && activeIdx >= 0) {
+    e.preventDefault();                         // choose the highlighted player, don't submit yet
+    pickPlayer(suggestions[activeIdx].name);
+  } else if (e.key === 'Escape' && !playerList.hidden) {
+    closeList();
+  }
+});
+playerInput.addEventListener('focus', () => {
+  if (playerInput.value.trim().length >= 2 && playerInput.value.trim() !== filledFor) searchPlayers();
+});
+playerInput.addEventListener('blur', () => {
+  clearTimeout(searchTimer);
+  if (searchCtl) searchCtl.abort();
+  closeList();
+  const typed = playerInput.value.trim();
+  if (typed && typed !== filledFor) fillFor(typed, false);   // a complete name typed by hand still gets filled in
+});
+
+// Changing the prop type re-bases the line on that stat's season average.
+propTypeSelect.addEventListener('change', async () => {
   const player = playerInput.value.trim();
   if (!player) return;
   try {
-    const resp = await fetch(`/api/suggest-line?player=${encodeURIComponent(player)}&prop_type=${encodeURIComponent(propTypeSelect.value)}`);
+    const resp = await fetch('/api/suggest-line?player=' + encodeURIComponent(player) + '&prop_type=' + encodeURIComponent(propTypeSelect.value));
     const data = await resp.json();
-    if (data.line !== null && data.line !== undefined) {
-      lineInput.value = data.line;
-    }
+    if (data.line !== null && data.line !== undefined) lineInput.value = data.line;
   } catch (e) {
-    // Silent -- the field just stays whatever it was; not worth an error banner for a suggestion.
+    // the field just keeps its value
   }
-}
-playerInput.addEventListener('blur', suggestLine);
-propTypeSelect.addEventListener('change', suggestLine);
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();

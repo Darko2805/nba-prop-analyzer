@@ -1695,3 +1695,63 @@ a.blog-list-item p:last-child {
   margin: 1rem 0 0.5rem;
 }
 .legal-summary p { margin: 0; color: var(--text); }
+
+
+/* ---- Player search dropdown (Analyze form) ---- */
+.combo { position: relative; }
+.combo-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max(100%, 320px);
+  max-width: calc(100vw - 2rem);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+.combo-list[hidden] { display: none; }
+.combo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 42px;
+  padding: 0.45rem 0.7rem;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.combo-item.active { background: var(--accent-glow); }
+.combo-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-name b { color: var(--accent); font-weight: 600; }
+.combo-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.combo-empty { padding: 0.7rem; color: var(--text-muted); font-size: 0.9rem; }
+
+.matchup-note {
+  min-height: 1.2em;
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  white-space: pre-line;
+}
+.matchup-note.busy { opacity: 0.7; }
+.matchup-note.warn { color: var(--yellow); }
+
+@media (max-width: 640px) {
+  .form-group.player-group { grid-column: 1 / -1; }
+  #analyzeForm .form-row > .form-group:last-child { grid-column: 1 / -1; }
+  .combo-list { max-height: 260px; }
+}
