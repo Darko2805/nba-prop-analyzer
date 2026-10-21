@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K, ROOKIE_BLEND_K
+from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K, ROOKIE_BLEND_K, LIVE_BBREF_FALLBACK
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
@@ -192,7 +192,7 @@ class PropAnalyzer:
         estimating from three_point_rate."""
         current = snapshot_store.load_shot_zone(player.name)
         prior = snapshot_store.load_shot_zone(player.name, prev=True)
-        if not current and not prior:
+        if not current and not prior and LIVE_BBREF_FALLBACK:
             try:
                 prior = fetch_shot_zone_profile(player.name, PRIOR_SEASON_YEAR)
             except Exception as e:
@@ -208,7 +208,7 @@ class PropAnalyzer:
         rates and head-to-head history are meaningful from the first game of a new season."""
         prior = snapshot_store.load_game_logs(player.name, prev=True)
         current = snapshot_store.load_game_logs(player.name)
-        if prior is None and current is None:
+        if prior is None and current is None and LIVE_BBREF_FALLBACK:
             print(f"  Fetching game logs from basketball-reference for {player.name}...")
             try:
                 prior = fetch_game_logs(player.name, PRIOR_SEASON_YEAR)

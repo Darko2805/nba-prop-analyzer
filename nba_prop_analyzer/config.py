@@ -1,3 +1,5 @@
+import os
+
 # Seasons are named by the year they end in (2026 = 2025-26). The prior
 # season is complete and static; the current one fills in game by game.
 CURRENT_SEASON_YEAR = 2027
@@ -71,3 +73,11 @@ REQUEST_HEADERS = {
 # Bump when /terms or /privacy change materially; recorded with each signup.
 LEGAL_VERSION = "2026-10-07"
 MIN_AGE = 18
+
+# basketball-reference blocks the production host's IP (403), so a live scrape
+# inside a web request can only waste time there: every call waits out a 3 s
+# rate limit behind a global lock and then fails. Production therefore runs on
+# the committed snapshot alone; a player missing from it gets season averages.
+# Local development (no FLASK_SECRET_KEY) still falls back to live fetches, and
+# ALLOW_LIVE_BBREF=1 forces them on anywhere.
+LIVE_BBREF_FALLBACK = os.environ.get("ALLOW_LIVE_BBREF") == "1" or not os.environ.get("FLASK_SECRET_KEY")
