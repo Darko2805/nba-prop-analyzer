@@ -74,6 +74,7 @@
         </div>
       </div>
       <button type="button" class="btn" id="loginSubmit">Log in</button>
+      <p class="signup-toggle"><button type="button" class="link-btn" id="forgotPassword">Forgot password?</button></p>
       <p class="signup-toggle">Need an account? <button type="button" class="link-btn" id="showSignup">Sign up</button></p>
     </div>
     <div class="signup-msg" id="signupMsg"></div>
@@ -559,6 +560,18 @@ function setSignupMsg(text, cls) {
   signupMsg.className = 'signup-msg' + (cls ? ' ' + cls : '');
 }
 
+// Asks the server to email a password-reset link; resolves with the message to show.
+async function sendResetLink(email) {
+  const r = await fetch('/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Something went wrong.');
+  return d.message;
+}
+
 if (showLogin) {
   showLogin.addEventListener('click', () => {
     signupPane.style.display = 'none';
@@ -612,14 +625,7 @@ if (signupSubmit) {
           resetBtn.disabled = true;
           resetBtn.textContent = 'Sending...';
           try {
-            const r = await fetch('/auth/forgot-password', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email }),
-            });
-            const d = await r.json();
-            if (!r.ok) throw new Error(d.error || 'Something went wrong.');
-            setSignupMsg(d.message, 'success');
+            setSignupMsg(await sendResetLink(email), 'success');
           } catch (e) {
             setSignupMsg(e.message, 'error');
           }
@@ -630,6 +636,29 @@ if (signupSubmit) {
     } finally {
       signupSubmit.disabled = false;
       signupSubmit.textContent = 'Create account';
+    }
+  });
+}
+
+const forgotPassword = document.getElementById('forgotPassword');
+if (forgotPassword) {
+  forgotPassword.addEventListener('click', async () => {
+    const emailInput = document.getElementById('loginEmail');
+    const email = emailInput.value.trim();
+    if (!email || !email.includes('@')) {
+      setSignupMsg('Type your email address above, then click "Forgot password?" again.', 'error');
+      emailInput.focus();
+      return;
+    }
+    forgotPassword.disabled = true;
+    forgotPassword.textContent = 'Sending...';
+    try {
+      setSignupMsg(await sendResetLink(email), 'success');
+    } catch (err) {
+      setSignupMsg(err.message, 'error');
+    } finally {
+      forgotPassword.disabled = false;
+      forgotPassword.textContent = 'Forgot password?';
     }
   });
 }
