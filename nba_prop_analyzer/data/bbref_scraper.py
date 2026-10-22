@@ -2,6 +2,9 @@
 Basketball-Reference game log scraper.
 Respects rate limits: 1 request per 3 seconds, caches aggressively.
 """
+import json
+import os
+import re
 import time
 import unicodedata
 import requests
@@ -72,6 +75,114 @@ def _build_player_id(name: str) -> str:
     return player_id
 
 
+# basketball-reference ids are `last5 + first2 + NN`, where NN counts everyone with the same
+# letters (davisan01 is a retired Antonio Davis, davisan02 is Anthony Davis). Guessing "01"
+# silently returns the wrong person's page, so the page's own name is checked, and an id found
+# to differ from the guess is remembered in a small committed file so it is only looked up once.
+_IDS_PATH = os.path.join(os.path.dirname(__file__), "snapshot", "player_ids.json")
+_ids_cache = None
+_ID_SUFFIXES = range(1, 8)
+
+
+def _name_key(text: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", text or "")
+    s = "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
+    return re.sub(r"\s+", " ", re.sub(r"[.'\u2019\-]", " ", s)).strip()
+
+
+def _load_known_ids() -> dict:
+    global _ids_cache
+    if _ids_cache is None:
+        try:
+            with open(_IDS_PATH) as f:
+                _ids_cache = json.load(f)
+        except (OSError, ValueError):
+            _ids_cache = {}
+    return _ids_cache
+
+
+def _remember_id(player_name: str, player_id: str) -> None:
+    ids = _load_known_ids()
+    if ids.get(player_name) == player_id or player_id == _build_player_id(player_name):
+        return  # the plain guess needs no entry
+    ids[player_name] = player_id
+    try:
+        os.makedirs(os.path.dirname(_IDS_PATH), exist_ok=True)
+        with open(_IDS_PATH, "w") as f:
+            json.dump(ids, f, indent=1, sort_keys=True)
+    except OSError:
+        pass  # read-only host: it just won't persist
+
+
+def _h1_text(html: str) -> str:
+    m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(1))).strip() if m else ""
+
+
+def _page_is_for(html: str, player_name: str) -> bool:
+    """True when the page's heading starts with this player's name ("Anthony Davis 2025-26 Game Log")."""
+    heading, wanted = _name_key(_h1_text(html)), _name_key(player_name)
+    return bool(wanted) and (heading == wanted or heading.startswith(wanted + " "))
+
+
+def _http_get(url: str):
+    """One polite GET; None on a network error. Retries once after a 429."""
+    _rate_limit()
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+        if resp.status_code == 429:
+            print("    [bbref] Rate limited, waiting 10s...")
+            time.sleep(10)
+            _rate_limit()
+            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+        return resp
+    except requests.RequestException:
+        return None
+
+
+def resolve_player_id(player_name: str) -> str:
+    """The player's real id, found on the main player pages ('' when no page has their name)."""
+    base = _build_player_id(player_name)
+    if not base:
+        return ""
+    stem = base[:-2]
+    for n in _ID_SUFFIXES:
+        pid = f"{stem}{n:02d}"
+        resp = _http_get(f"https://www.basketball-reference.com/players/{pid[0]}/{pid}.html")
+        if resp is None or resp.status_code == 404:
+            return ""        # ids are consecutive: past the last one (or blocked) there is nothing to find
+        if resp.status_code == 200 and _page_is_for(resp.text, player_name):
+            return pid
+    return ""
+
+
+def _fetch_player_section(player_name: str, section: str, season_year: int):
+    """
+    The player's `gamelog` or `shooting` page for a season, for the RIGHT person, or None.
+    The usual id is tried first (one request); a page that names someone else triggers the lookup.
+    """
+    pid = _load_known_ids().get(player_name) or _build_player_id(player_name)
+    if not pid:
+        return None
+
+    def url_for(player_id):
+        return f"https://www.basketball-reference.com/players/{player_id[0]}/{player_id}/{section}/{season_year}"
+
+    resp = _http_get(url_for(pid))
+    if resp is None:
+        return None
+    if resp.status_code == 200 and _page_is_for(resp.text, player_name):
+        return resp
+    if resp.status_code not in (200, 404):
+        return None          # blocked or erroring: do not start guessing
+    real = resolve_player_id(player_name)
+    if not real or real == pid:
+        return None
+    _remember_id(player_name, real)
+    resp = _http_get(url_for(real))
+    return resp if resp is not None and resp.status_code == 200 and _page_is_for(resp.text, player_name) else None
+
+
 def _get_season_year() -> int:
     """Basketball-reference uses the ending year (2024-25 season = 2025)."""
     from ..config import CURRENT_SEASON_YEAR
@@ -91,32 +202,8 @@ def fetch_game_logs(player_name: str, season_year: Optional[int] = None) -> List
     if cached is not None:
         return cached
 
-    player_id = _build_player_id(player_name)
-    if not player_id:
-        return []
-
-    first_letter = player_id[0]
-    url = f"https://www.basketball-reference.com/players/{first_letter}/{player_id}/gamelog/{season_year}"
-
-    _rate_limit()
-
-    try:
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
-        if resp.status_code == 429:
-            print("    [bbref] Rate limited, waiting 10s...")
-            time.sleep(10)
-            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
-
-        if resp.status_code != 200:
-            # Try alternate ID (e.g., 02 suffix for players sharing name patterns)
-            alt_id = player_id[:-2] + "02"
-            url = f"https://www.basketball-reference.com/players/{first_letter}/{alt_id}/gamelog/{season_year}"
-            _rate_limit()
-            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
-            if resp.status_code != 200:
-                return []
-
-    except requests.RequestException:
+    resp = _fetch_player_section(player_name, "gamelog", season_year)
+    if resp is None:
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -190,23 +277,8 @@ def fetch_shot_zone_profile(player_name: str, season_year: Optional[int] = None)
     if cached is not None:
         return cached
 
-    player_id = _build_player_id(player_name)
-    if not player_id:
-        return {}
-
-    first_letter = player_id[0]
-    url = f"https://www.basketball-reference.com/players/{first_letter}/{player_id}/shooting/{season_year}"
-
-    _rate_limit()
-
-    try:
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
-        if resp.status_code == 429:
-            time.sleep(10)
-            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
-        if resp.status_code != 200:
-            return {}
-    except requests.RequestException:
+    resp = _fetch_player_section(player_name, "shooting", season_year)
+    if resp is None:
         return {}
 
     soup = BeautifulSoup(resp.text, "html.parser")
