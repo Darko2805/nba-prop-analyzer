@@ -29,6 +29,7 @@ import threading
 import requests
 from datetime import datetime, timezone, timedelta
 from flask import Request, g
+from nba_prop_analyzer.data.supabase_keys import service_headers
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -51,11 +52,7 @@ FREE_TIER_RESET_DAYS = 4
 
 
 def _headers() -> dict:
-    return {
-        "apikey": SUPABASE_SERVICE_ROLE_KEY,
-        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-        "Content-Type": "application/json",
-    }
+    return service_headers(SUPABASE_SERVICE_ROLE_KEY, **{"Content-Type": "application/json"})
 
 
 def get_client_ip(req: Request) -> str:

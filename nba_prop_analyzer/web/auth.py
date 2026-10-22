@@ -38,6 +38,8 @@ import os
 import requests
 from flask import session
 
+from nba_prop_analyzer.data.supabase_keys import service_headers
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -211,12 +213,10 @@ def upsert_profile(user_id: str, email: str, name: str) -> dict:
     """
     resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/profiles",
-        headers={
-            "apikey": SUPABASE_SERVICE_ROLE_KEY,
-            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=representation",
-        },
+        headers=service_headers(
+            SUPABASE_SERVICE_ROLE_KEY,
+            **{"Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=representation"},
+        ),
         json={"id": user_id, "email": email, "name": name},
         timeout=_REQUEST_TIMEOUT,
     )
@@ -235,10 +235,7 @@ def upsert_profile(user_id: str, email: str, name: str) -> dict:
 def get_profile(user_id: str) -> dict:
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/profiles",
-        headers={
-            "apikey": SUPABASE_SERVICE_ROLE_KEY,
-            "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-        },
+        headers=service_headers(SUPABASE_SERVICE_ROLE_KEY),
         params={"id": f"eq.{user_id}", "select": "*"},
         timeout=_REQUEST_TIMEOUT,
     )

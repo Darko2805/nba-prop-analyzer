@@ -25,6 +25,7 @@ from .databallr_client import find_player
 from .team_mapping import normalize_team, et_date
 from .bbref_scraper import get_stat_from_games
 from . import snapshot_store
+from .supabase_keys import service_headers
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -45,11 +46,7 @@ TRACKED_PLAYERS = [
 
 
 def _headers() -> dict:
-    return {
-        "apikey": SUPABASE_SERVICE_ROLE_KEY,
-        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-        "Content-Type": "application/json",
-    }
+    return service_headers(SUPABASE_SERVICE_ROLE_KEY, **{"Content-Type": "application/json"})
 
 
 def _today() -> str:
