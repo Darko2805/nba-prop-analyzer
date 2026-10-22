@@ -49,30 +49,39 @@ def _rate_limit():
     _last_request_time = time.time()
 
 
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def _letters(text: str) -> str:
+    return "".join(c for c in text.lower() if c.isalpha())
+
+
+def _id_stems(name: str) -> list:
+    """
+    The `last5 + first2` stems basketball-reference might use for this name, most likely first.
+    Generational suffixes are dropped (the id of "Jaren Jackson Jr." starts with "jacks", not "jr"),
+    and a two-word surname also gets a stem from both words ("Tristan Da Silva" -> "dasiltr").
+    """
+    normalized = unicodedata.normalize("NFKD", name)
+    parts = "".join(c for c in normalized if not unicodedata.combining(c)).strip().split()
+    while len(parts) > 1 and _letters(parts[-1]) in _NAME_SUFFIXES:
+        parts.pop()
+    if len(parts) < 2:
+        return []
+    first = _letters(parts[0])[:2]
+    stems = [_letters(parts[-1])[:5] + first]
+    if len(parts) >= 3:
+        stems.append(_letters("".join(parts[1:]))[:5] + first)
+    return list(dict.fromkeys(st for st in stems if len(st) >= 3))
+
+
 def _build_player_id(name: str) -> str:
     """
-    Convert player name to basketball-reference ID format.
-    Format: first 5 chars of last name + first 2 chars of first name + '01'
-    Example: Stephen Curry -> curryst01, LeBron James -> jamesle01
+    The usual basketball-reference id: first 5 letters of the surname + first 2 of the first name + '01'
+    (Stephen Curry -> curryst01). Only a first guess: see resolve_player_id for the ones where NN differs.
     """
-    # Strip diacritics
-    normalized = unicodedata.normalize("NFKD", name)
-    ascii_name = "".join(c for c in normalized if not unicodedata.combining(c))
-
-    parts = ascii_name.strip().split()
-    if len(parts) < 2:
-        return ""
-
-    first_name = parts[0].lower()
-    last_name = parts[-1].lower()
-
-    # Remove non-alpha characters
-    first_name = "".join(c for c in first_name if c.isalpha())
-    last_name = "".join(c for c in last_name if c.isalpha())
-
-    # basketball-reference format: first 5 of last + first 2 of first + 01
-    player_id = last_name[:5] + first_name[:2] + "01"
-    return player_id
+    stems = _id_stems(name)
+    return stems[0] + "01" if stems else ""
 
 
 # basketball-reference ids are `last5 + first2 + NN`, where NN counts everyone with the same
@@ -142,17 +151,16 @@ def _http_get(url: str):
 
 def resolve_player_id(player_name: str) -> str:
     """The player's real id, found on the main player pages ('' when no page has their name)."""
-    base = _build_player_id(player_name)
-    if not base:
-        return ""
-    stem = base[:-2]
-    for n in _ID_SUFFIXES:
-        pid = f"{stem}{n:02d}"
-        resp = _http_get(f"https://www.basketball-reference.com/players/{pid[0]}/{pid}.html")
-        if resp is None or resp.status_code == 404:
-            return ""        # ids are consecutive: past the last one (or blocked) there is nothing to find
-        if resp.status_code == 200 and _page_is_for(resp.text, player_name):
-            return pid
+    for stem in _id_stems(player_name):
+        for n in _ID_SUFFIXES:
+            pid = f"{stem}{n:02d}"
+            resp = _http_get(f"https://www.basketball-reference.com/players/{pid[0]}/{pid}.html")
+            if resp is None:
+                return ""        # network trouble or blocked: do not guess
+            if resp.status_code == 404:
+                break            # ids are consecutive: past the last one for this stem, try the next stem
+            if resp.status_code == 200 and _page_is_for(resp.text, player_name):
+                return pid
     return ""
 
 

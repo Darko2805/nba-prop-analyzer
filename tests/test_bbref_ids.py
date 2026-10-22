@@ -92,5 +92,43 @@ class IdResolutionTests(unittest.TestCase):
         self.assertFalse(b._page_is_for("<h1>Antonio Davis 2025-26 Game Log</h1>", "Anthony Davis"))
 
 
+class IdStemTests(unittest.TestCase):
+    def test_generational_suffixes_are_dropped(self):
+        for name, stem in [("Jaren Jackson Jr.", "jacksja"), ("Trey Murphy III", "murphtr"), ("Dereck Lively II", "livelde"),
+                           ("GG Jackson II", "jacksgg"), ("Gary Payton II", "paytoga"), ("Michael Porter Jr.", "portemi"),
+                           ("Stephen Curry", "curryst"), ("Luka Dončić", "doncilu")]:
+            self.assertEqual(b._id_stems(name)[0], stem, name)
+        self.assertEqual(b._build_player_id("Jabari Smith Jr."), "smithja01")
+
+    def test_two_word_surnames_get_a_second_stem(self):
+        self.assertEqual(b._id_stems("Tristan Da Silva"), ["silvatr", "dasiltr"])
+        self.assertEqual(b._id_stems("Jeremiah Robinson-Earl"), ["robinje"])
+
+    def test_a_single_word_gives_nothing(self):
+        self.assertEqual(b._id_stems("Nene"), [])
+        self.assertEqual(b._build_player_id("Nene"), "")
+
+
+class SuffixResolutionTests(IdResolutionTests):
+    def test_a_junior_is_found_past_his_fathers_page(self):
+        self.pages = {
+            "j/jacksja01/gamelog/2026": R(status_code=200, text="<h1>Jaren Jackson 2025-26 Game Log</h1>"),   # the father
+            "j/jacksja01.html": main_page("Jaren Jackson"),
+            "j/jacksja02.html": main_page("Jaren Jackson Jr."),
+            "j/jacksja02/gamelog/2026": gamelog_page("Jaren Jackson Jr."),
+        }
+        self.assertEqual(len(b.fetch_game_logs("Jaren Jackson Jr.", 2026)), 1)
+        self.assertEqual(json.load(open(b._IDS_PATH)), {"Jaren Jackson Jr.": "jacksja02"})
+
+    def test_the_second_stem_is_tried_when_the_first_has_no_pages(self):
+        self.pages = {
+            "s/silvatr01/gamelog/2026": GENERIC,
+            "s/silvatr01.html": NOT_FOUND,
+            "d/dasiltr01.html": main_page("Tristan Da Silva"),
+            "d/dasiltr01/gamelog/2026": gamelog_page("Tristan Da Silva"),
+        }
+        self.assertEqual(len(b.fetch_game_logs("Tristan Da Silva", 2026)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
