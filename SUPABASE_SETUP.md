@@ -43,6 +43,10 @@ create table if not exists public.anon_usage (
 alter table public.anon_usage enable row level security;
 -- No public policies -- only the service_role key (server-side, in usage.py)
 -- ever reads or writes this table.
+
+-- A table made in the SQL Editor gets no automatic grants for service_role. Without
+-- this line the weekly clean-up of old rows fails with a 403 and rows pile up forever:
+grant select, insert, update, delete on public.anon_usage to service_role;
 ```
 
 To manually upgrade an account to paid (no billing integration exists yet):
