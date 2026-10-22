@@ -623,7 +623,7 @@ def blog_post(slug):
     return render_template("blog_post.html", post=post)
 
 
-FREE_VISIBLE_DAYS = 0   # how many of the latest days a free/anonymous visitor can open; paid sees them all
+FREE_VISIBLE_DAYS = 3   # the latest days anyone (anonymous or free) can open as proof of concept; paid sees every day
 
 
 @app.route("/track-record")
