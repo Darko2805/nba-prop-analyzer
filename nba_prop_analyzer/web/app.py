@@ -623,34 +623,41 @@ def blog_post(slug):
     return render_template("blog_post.html", post=post)
 
 
+FREE_VISIBLE_DAYS = 0   # how many of the latest days a free/anonymous visitor can open; paid sees them all
+
+
 @app.route("/track-record")
 def track_record_page():
-    history = track_record.fetch_scored_history()
-    summary = track_record.summarize_history(history)
+    days = track_record.group_by_day(track_record.fetch_pick_rows())
+    summary = track_record.summarize_days(days)
     user = auth.current_user()
     is_paid = bool(user and user.get("tier") == "paid")
 
-    if is_paid:
-        for row in history:
-            player = find_player(row["player"], analyzer.players) if analyzer.is_ready() else None
-            espn_id = find_espn_player_id(row["player"], player.team_abbr) if player else None
-            row["headshot"] = espn_headshot_url(espn_id) if espn_id else None
+    visible = days if is_paid else days[:FREE_VISIBLE_DAYS]
+    for day in visible:
+        d = datetime.date.fromisoformat(day["date"])
+        day["label"] = f"{d:%A}, {d:%B} {d.day}"
+        day["short"] = f"{d:%b} {d.day}"
+        for pick in day["picks"]:
+            pick["unit"] = _EDGE_PROP_UNIT.get(pick["prop_type"], pick["prop_type"].upper())
+            player = find_player(pick["player"], analyzer.players) if analyzer.is_ready() else None
+            espn_id = find_espn_player_id(pick["player"], player.team_abbr) if player else None
+            pick["headshot"] = espn_headshot_url(espn_id) if espn_id else None
 
     return render_template(
         "track_record.html",
         summary=summary,
-        # Detail rows are the paid perk; the aggregate above is shown to
-        # everyone since it's the trust-building headline, not the receipts.
-        history=history if is_paid else [],
+        # The headline numbers are public (trust-building); the day-by-day receipts follow the tier rules above.
+        days=visible,
+        total_days=len(days),
         is_paid=is_paid,
-        tracked_count=len(track_record.TRACKED_PLAYERS),
+        picks_per_day=track_record.PICKS_PER_DAY,
     )
 
 
 @app.route("/internal/snapshot-track-record")
 def snapshot_track_record():
-    # Manual trigger until this is wired into the existing daily
-    # scheduled task -- fails closed (unlike usage.py's fail-open
+    # Called once a day by the daily job; fails closed (unlike usage.py's fail-open
     # pattern) since this is an admin action, not a real-user request.
     expected = os.environ.get("TRACK_RECORD_KEY")
     if not expected or request.args.get("key") != expected:
@@ -661,8 +668,10 @@ def snapshot_track_record():
     # aren't a meaningful basis for a graded track record.
     games = fetch_games_on(et_date()) or []
     games = [g for g in games if g["season_type"] in (2, 3)]
-    count = track_record.snapshot_todays_predictions(analyzer, games)
-    return jsonify({"recorded": count})
+    if not games:
+        return jsonify({"recorded": 0, "status": "no_games"})
+    edges = build_biggest_edges(analyzer, games, limit=14)
+    return jsonify(track_record.snapshot_top_edges(edges))
 
 
 @app.route("/internal/score-track-record")

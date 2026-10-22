@@ -95,6 +95,10 @@ run() {
     echo "  graded:   $score"
     echo "  recorded: $record"
     case "$score$record" in *"Not found"*) PROBLEMS="$PROBLEMS | TRACK_RECORD_KEY is not set on Railway (track record not running)";; esac
+    case "$record" in
+      *'"status":"schema"'*) PROBLEMS="$PROBLEMS | today's picks NOT saved: tracked_predictions is missing columns (run the ALTER TABLE in SUPABASE_SETUP.md)";;
+      *'"status":"error"'*) PROBLEMS="$PROBLEMS | today's picks NOT saved (database error)";;
+    esac
   else
     PROBLEMS="$PROBLEMS | track record key file missing ($KEYFILE)"
   fi

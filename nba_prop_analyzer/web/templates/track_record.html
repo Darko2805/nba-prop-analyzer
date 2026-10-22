@@ -30,7 +30,7 @@
 
   <div class="about-hero">
     <h1 class="about-hero-title">Every call, graded — nothing hidden.</h1>
-    <p class="about-hero-sub">Each day we snapshot a real prediction for a fixed list of {{ tracked_count }} well-known players, before their game — then check it against what actually happened. Never re-run with hindsight, never re-picked after the fact.</p>
+    <p class="about-hero-sub">Each morning, before tip-off, we lock the {{ picks_per_day }} strongest edges from that day's Biggest Edges. After the games, each one is checked against the real box score. A locked pick is never changed, swapped or removed.</p>
   </div>
 
   <div class="about-page">
@@ -38,55 +38,71 @@
     <section class="about-section">
       <div class="stat-row">
         <div class="stat-box">
-          <div class="label">Graded Calls</div>
-          <div class="value">{{ summary.total_scored }}</div>
+          <div class="label">Days Tracked</div>
+          <div class="value">{{ summary.days }}</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Picks Graded</div>
+          <div class="value">{{ summary.graded }}</div>
         </div>
         <div class="stat-box">
           <div class="label">Hit Rate</div>
           <div class="value">{{ summary.hit_rate ~ '%' if summary.hit_rate is not none else '—' }}</div>
         </div>
-        <div class="stat-box">
-          <div class="label">Tracking Since</div>
-          <div class="value">{{ summary.earliest_date or '—' }}</div>
-        </div>
       </div>
-      {% if summary.total_scored == 0 %}
-      <p class="empty-hint" style="margin-top:1rem;">Nothing graded yet — it's the off-season, so none of the tracked players have a real game to check yet. This page fills in on its own once the season starts; nothing here will ever be backfilled or estimated.</p>
-      {% else %}
-      <p class="empty-hint" style="margin-top:1rem;">Hit rate excludes pushes and calls with no lean either way — a coin flip isn't a claim we made, so it isn't graded as one.</p>
-      {% endif %}
+      <p class="empty-hint" style="margin-top:1rem;">The line on every pick is that player's season average, rounded to the nearest half. It is not a sportsbook line. A pick counts as correct when the player finished on the side we called. Pushes and players who did not play are not counted either way.{% if summary.pending %} {{ summary.pending }} pick{{ '' if summary.pending == 1 else 's' }} still pending: the game has not finished or its box score has not been collected yet.{% endif %}</p>
     </section>
 
-    {% if is_paid %}
-    <section class="about-section">
-      <h2 class="about-section-title">Full history</h2>
-      {% if history %}
+    {% if days %}
+    <nav class="track-days-nav" aria-label="Jump to a day">
+      {% for day in days %}
+      <a class="track-chip" href="#d-{{ day.date }}">{{ day.short }}{% if day.graded %} <span class="track-chip-score">{{ day.correct }}/{{ day.graded }}</span>{% endif %}</a>
+      {% endfor %}
+    </nav>
+
+    {% for day in days %}
+    <section class="track-day" id="d-{{ day.date }}">
+      <div class="track-day-head">
+        <h2 class="track-day-title">{{ day.label }}</h2>
+        <span class="track-day-score">
+          {% if day.graded %}{{ day.correct }} of {{ day.graded }} correct{% if day.pending %} · {{ day.pending }} pending{% endif %}{% else %}{{ day.pending }} pending{% endif %}
+        </span>
+      </div>
       <div class="track-list">
-        {% for row in history %}
+        {% for pick in day.picks %}
         <div class="track-row">
-          <div class="track-date">{{ row.date }}</div>
-          {% if row.headshot %}
-          <img src="{{ row.headshot }}" alt="" class="player-headshot" onerror="this.style.display='none'">
+          <div class="track-rank" title="Rank among that day's edges">{{ pick.pick_rank }}</div>
+          {% if pick.headshot %}
+          <img src="{{ pick.headshot }}" alt="" class="player-headshot" onerror="this.style.display='none'">
           {% else %}
           <span class="player-headshot player-headshot-empty"></span>
           {% endif %}
           <div class="track-body">
-            <span class="track-player">{{ row.player }}</span>
-            <span class="track-detail">{{ row.prop_type|upper }} {{ row.line }} vs {{ row.opponent }} — predicted {{ row.predicted_value }}, actual {{ row.actual_value }}</span>
+            <span class="track-player">{{ pick.player }}</span>
+            <span class="track-detail">{{ pick.unit }} {{ pick.line }} vs {{ pick.opponent }} — we projected {{ pick.predicted_value }}, called the {{ pick.lean }}</span>
+            {% if pick.headline_note %}<span class="track-note">{{ pick.headline_note }}</span>{% endif %}
           </div>
-          <div class="track-hit {% if row.hit == 'PUSH' %}track-hit-push{% elif row.lean == row.hit %}track-hit-correct{% else %}track-hit-incorrect{% endif %}">{{ row.hit }}</div>
+          <div class="track-result track-result-{{ pick.status }}">
+            <span class="track-result-label">{{ {'correct': 'Correct', 'wrong': 'Missed', 'push': 'Push', 'dnp': 'Did not play', 'pending': 'Pending'}[pick.status] }}</span>
+            {% if pick.actual_value is not none %}<span class="track-result-actual">{{ pick.actual_value|int if pick.actual_value == pick.actual_value|int else pick.actual_value }} {{ pick.unit }}</span>{% endif %}
+          </div>
         </div>
         {% endfor %}
       </div>
-      {% else %}
-      <p class="empty-hint">No graded predictions yet — check back once games are played this season.</p>
-      {% endif %}
     </section>
-    {% else %}
+    {% endfor %}
+    {% endif %}
+
+    {% if not is_paid and total_days > days|length %}
     <section class="about-section">
-      <h2 class="about-section-title">Full history</h2>
-      <p>Every graded call, every day — player, line, what we predicted, what actually happened — is part of the paid tier.</p>
+      <h2 class="about-section-title">{{ 'Full history' if not days else 'Earlier days' }}</h2>
+      <p>Every day's five picks — player, line, what we projected, what actually happened — {% if days %}go back further for{% else %}are part of{% endif %} the paid tier.</p>
       <p class="about-section-note">{% if current_user %}Upgrade for unlimited analyses and the full history.{% else %}Sign up free, then upgrade for unlimited analyses and the full history.{% endif %}</p>
+    </section>
+    {% elif total_days == 0 %}
+    <section class="about-section">
+      <h2 class="about-section-title">No picks yet</h2>
+      <p class="empty-hint">The first set of {{ picks_per_day }} locks on the next morning with games. It will appear here, and this page grows by one day, every day.</p>
     </section>
     {% endif %}
 

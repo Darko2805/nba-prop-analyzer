@@ -86,6 +86,15 @@ alter table public.tracked_predictions enable row level security;
 grant select, insert, update on public.tracked_predictions to service_role;
 ```
 
+The daily top-5 track record needs three more columns (run once, safe to repeat):
+
+```sql
+alter table public.tracked_predictions
+  add column if not exists pick_rank integer,
+  add column if not exists headline_note text,
+  add column if not exists team text;
+```
+
 (That `grant` line is required -- a table created via this SQL Editor does
 NOT automatically get service_role privileges the way the dashboard's
 Table Editor does. See the `anon_usage` incident in memory if this ever
