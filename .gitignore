@@ -9,3 +9,7 @@ build/
 .venv/
 venv/
 .claude/
+
+# Local scratch scripts kept in the project root. They hold a hardcoded API key, and this
+# repository is public, so a stray `git add .` would publish it. Ignored deliberately.
+analyze_*.py
