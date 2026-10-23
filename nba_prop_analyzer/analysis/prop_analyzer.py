@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_BLEND_K, ROOKIE_BLEND_K, LIVE_BBREF_FALLBACK
+from ..config import COMBO_PROP_TYPES, CURRENT_SEASON_YEAR, PRIOR_SEASON_YEAR, PLAYER_FULL_TRUST_GAMES, PLAYER_EARLY_WEIGHT, LIVE_BBREF_FALLBACK
 from ..data.databallr_client import fetch_team_data, find_player
 from ..data.teamrankings_scraper import fetch_teamrankings_opponent_stats
 from ..data.bbref_scraper import fetch_game_logs, fetch_shot_zone_profile, get_stat_from_games, GameLog
@@ -10,7 +10,7 @@ from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team, fetch_current_teams, current_team_of, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
-from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers, league_average_player
+from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers, player_blend_weight
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
@@ -125,22 +125,18 @@ class PropAnalyzer:
         return bool(self.players) and bool(self.team_profiles)
 
     def _blend_players(self, current: list, prior: list) -> list:
-        """Each player's numbers mix this season with last by games/(games+K); a player with no new-season
-        games is exactly last season's numbers. A player with no last-season row (a rookie) mixes with a
-        league-average player of their own minutes instead, with the smaller ROOKIE_BLEND_K."""
+        """Each player's numbers: last season's alone before their first game, last season and this season so
+        far weighted equally for games 1 to 4, this season's alone from game 5. A player with no last-season
+        row (a rookie, or someone who missed the year) uses this season's real numbers alone from game 1."""
         by_name = {}
         for p in prior:
             p.blend_weight = 0.0
             by_name[p.name] = p
         for c in current:
             prev = by_name.get(c.name)
-            if prev:
-                w = blend_weight(c.games_played, PLAYER_BLEND_K)
-                blended = blend_dataclass(c, prev, w)
-            else:
-                baseline = league_average_player(prior, c)
-                w = blend_weight(c.games_played, ROOKIE_BLEND_K) if baseline else 1.0
-                blended = blend_dataclass(c, baseline, w)
+            w = player_blend_weight(c.games_played, has_last_season=prev is not None,
+                                    full_trust_games=PLAYER_FULL_TRUST_GAMES, early_weight=PLAYER_EARLY_WEIGHT)
+            blended = blend_dataclass(c, prev, w) if prev else c
             blended.blend_weight = w
             by_name[c.name] = blended
         return list(by_name.values())

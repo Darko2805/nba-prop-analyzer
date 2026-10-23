@@ -378,7 +378,7 @@
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight</h3>
     <p class="empty-hint">The single factor that moved each projection the most, our projection against the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.</p>
-    <p class="empty-hint">The line here is each player's season average, rounded to the nearest half. It is not a sportsbook line. Edge is our projection minus that line.</p>
+    <p class="empty-hint">The line here is each player's average, rounded to the nearest half: this season's average once a player has five games, and the plain average of last season and this season so far during their first four. It is not a sportsbook line. Edge is our projection minus that line.</p>
     <div class="edge-table-wrap">
       <table class="edge-table">
         <thead>
@@ -440,7 +440,7 @@
   {% if popular_bets %}
   <div class="showcase">
     <h3>Quick looks</h3>
-    <p class="empty-hint">Real season averages for well-known players. Pick one to run it.</p>
+    <p class="empty-hint">Real averages for well-known players. Pick one to run it.</p>
     <div class="popular-scroll">
       {% for pick in popular_bets %}
       <button type="button" class="popular-card" data-player="{{ pick.player }}" data-opponent="{{ pick.opponent or '' }}" data-prop="{{ pick.prop_type }}" data-line="{{ pick.line }}">
@@ -832,7 +832,7 @@ async function fillFor(name, pick) {
     } else {
       bits.push('No game in the next week. Pick an opponent.');
     }
-    if (data.average !== null && data.average !== undefined) bits.push('Season average: ' + data.average.toFixed(1) + ' PPG');
+    if (data.average !== null && data.average !== undefined) bits.push((data.average_label || 'Average') + ': ' + data.average.toFixed(1) + ' PPG');
     if (data.injury) bits.push('Injury report: ' + data.injury);
     setNote(bits.join('\n'), data.injury ? 'warn' : '');
   } catch (e) {
@@ -876,7 +876,7 @@ playerInput.addEventListener('blur', () => {
   if (typed && typed !== filledFor) fillFor(typed, false);   // a complete name typed by hand still gets filled in
 });
 
-// Changing the prop type re-bases the line on that stat's season average.
+// Changing the prop type re-bases the line on that stat's average.
 propTypeSelect.addEventListener('change', async () => {
   const player = playerInput.value.trim();
   if (!player) return;

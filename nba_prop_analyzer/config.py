@@ -5,18 +5,17 @@ import os
 CURRENT_SEASON_YEAR = 2027
 PRIOR_SEASON_YEAR = 2026
 
-# Early-season blend: weight on the current season = games / (games + K), so
-# the new season earns trust continuously as it accumulates (K games = half
-# weight) instead of switching at a cutoff. Teams get a larger K than players
-# because rosters turn over, so a team's own early games say less than its
-# players' do.
-PLAYER_BLEND_K = 10
+# Early-season numbers. Teams: weight on the current season = games / (games + K), so a team's own
+# early games earn trust continuously (rosters turn over, hence the larger K).
 TEAM_BLEND_K = 15
-# A player with no last-season row (a rookie, or someone back from overseas) is
-# pulled toward a league-average player with their own minutes instead. That
-# starting point says much less about them than a veteran's own last season does,
-# so the new season is trusted sooner: K=5 rather than 10.
-ROOKIE_BLEND_K = 5
+# Players use a simple rule instead, so the number a visitor sees can be explained in a sentence:
+#   no games yet this season   -> last season's numbers
+#   1 to 4 games               -> last season and this season so far count equally
+#   5 or more games            -> this season's numbers alone
+# A player with no last-season row (a rookie, or someone who missed the year) uses this season's real
+# numbers alone from the first game: nothing is invented to stand in for a history they do not have.
+PLAYER_FULL_TRUST_GAMES = 5
+PLAYER_EARLY_WEIGHT = 0.5
 DATABALLR_TEAM_URL = "https://api.databallr.com/v1/nba/teams/stats"
 ESPN_OPPONENT_STATS_URL = "https://www.espn.com/nba/stats/team/_/view/opponent"
 ESPN_TEAMS_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"

@@ -720,6 +720,18 @@ def api_suggest_line():
     return jsonify({"line": _suggested_line(player, prop_type)})
 
 
+def _average_label(player) -> str:
+    """Says plainly what the player's average is built from, so it is never passed off as something it isn't."""
+    games = player.games_played
+    plural = "" if games == 1 else "s"
+    weight = getattr(player, "blend_weight", 1.0)
+    if weight <= 0:
+        return "Last season's average"
+    if weight < 1:
+        return f"Early-season average (last season blended with {games} game{plural} this season)"
+    return f"Season average ({games} game{plural})"
+
+
 @app.route("/api/players")
 def api_players():
     # Type-ahead for the player box: any fragment of a first or last name.
@@ -771,6 +783,7 @@ def api_player_context():
         "prop_type": prop_type,
         "line": _suggested_line(player, prop_type),
         "average": round(player.ppg, 1) if prop_type == "points" else None,
+        "average_label": _average_label(player),
         "game": None if game is None else {
             "opponent": game["opponent"],
             "home": game["home"],
