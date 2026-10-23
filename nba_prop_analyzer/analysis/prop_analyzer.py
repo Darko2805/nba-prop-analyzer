@@ -10,7 +10,7 @@ from ..data.bbref_league_stats import fetch_all_players_per_game, fetch_opponent
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense, PropPrediction
 from ..data.team_mapping import normalize_team, fetch_current_teams, current_team_of, fetch_back_to_back_teams, fetch_three_in_four_teams
 from ..data import snapshot_store
-from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers, player_blend_weight
+from ..data.season_blend import blend_weight, blend_dataclass, blend_numbers, player_blend_weight, profile_blend_weight
 from .matchup import calculate_matchup_factor
 from .pace import calculate_pace_factor
 from .shot_zone import calculate_shot_zone_exploitation
@@ -19,7 +19,7 @@ from .free_throw import calculate_free_throw_factor
 from .teammate_efficiency import calculate_teammate_efficiency_factor
 from .rest_fatigue import calculate_rest_factor
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
-from .probability import estimate_probability, classify_confidence
+from .probability import estimate_probability, classify_confidence, confidence_note
 
 
 class PropAnalyzer:
@@ -182,7 +182,9 @@ class PropAnalyzer:
                     setattr(opp, field, value)
 
     def _shot_zone_for(self, player) -> dict | None:
-        """Shot-zone frequencies mixed across seasons by the player's own blend weight. Snapshots first
+        """Shot-zone frequencies mixed across seasons. The mix uses profile_blend_weight, not the season
+        average's weight: a shot distribution needs several games before it means anything, so one game
+        counts for a fifth of it and the rest stays on the baseline. Snapshots first
         (what production relies on -- bbref blocks the host's IP), a live fetch of last season only as a
         fallback for anyone not in the rotation snapshot; None leaves zeros so shot_zone.py falls back to
         estimating from three_point_rate."""
@@ -196,7 +198,8 @@ class PropAnalyzer:
         if current and not prior:
             prior = self._league_zone()
         if current and prior:
-            return blend_numbers(current, prior, player.blend_weight)
+            weight = profile_blend_weight(player.games_played, PLAYER_FULL_TRUST_GAMES)
+            return blend_numbers(current, prior, weight)
         return current or prior or None
 
     def _game_logs_for(self, player) -> list:
@@ -318,10 +321,14 @@ class PropAnalyzer:
         over_prob, under_prob = estimate_probability(
             adjusted, prop_line, prop_type, game_values=game_values
         )
-        confidence = classify_confidence(over_prob)
+        sample_games = len(game_logs) if game_logs else 0
+        confidence = classify_confidence(over_prob, sample_games)
+        thin_sample_note = confidence_note(sample_games)
 
         # Collect factors: zone_notes is a list (multiple step lines)
         key_factors = [matchup_note, pace_note] + zone_notes + [volume_note, ft_note, teammate_note, rest_note, trend_note]
+        if thin_sample_note:
+            key_factors.append(thin_sample_note)
 
         after_volume = baseline * matchup_factor * pace_factor * zone_factor * volume_factor
         after_ft = after_volume * ft_factor

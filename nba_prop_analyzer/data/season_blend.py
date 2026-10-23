@@ -29,6 +29,20 @@ def player_blend_weight(games: float, has_last_season: bool = True,
     return early_weight
 
 
+def profile_blend_weight(games: float, full_trust_games: int = 5) -> float:
+    """
+    Weight on this season for a SHAPE rather than an average -- a player's shot-zone mix, where one
+    game's shot locations are noise, not a style change. Unlike the season average, this never jumps:
+    it ramps with the games actually played (1 game = 1/5 of the way) and reaches this season alone at
+    `full_trust_games`. Below that the rest of the weight sits on the baseline the caller passes in
+    (last season's profile, or the league-average profile for a player with no last season), so a
+    single 3-point-heavy night cannot turn someone into a 3-point shooter.
+    """
+    if not games or games <= 0:
+        return 0.0
+    return min(1.0, games / full_trust_games)
+
+
 def _is_number(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 

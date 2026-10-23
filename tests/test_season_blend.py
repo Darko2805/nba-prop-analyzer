@@ -225,3 +225,22 @@ class PlayerBlendRuleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileWeightTest(unittest.TestCase):
+    """A shot-zone profile is a shape, not an average: one game must not redefine how a player shoots."""
+    def test_it_ramps_with_games_and_never_jumps(self):
+        from nba_prop_analyzer.data.season_blend import profile_blend_weight
+        self.assertEqual(profile_blend_weight(0), 0.0)
+        self.assertAlmostEqual(profile_blend_weight(1), 0.2)
+        self.assertAlmostEqual(profile_blend_weight(3), 0.6)
+        self.assertEqual(profile_blend_weight(5), 1.0)
+        self.assertEqual(profile_blend_weight(40), 1.0)   # never above 1
+
+    def test_one_game_leaves_four_fifths_on_the_baseline(self):
+        from nba_prop_analyzer.data.season_blend import profile_blend_weight, blend_numbers
+        one_game = {"at_rim_freq": 0.0, "short_mid_freq": 0.167}
+        league = {"at_rim_freq": 0.25, "short_mid_freq": 0.202}
+        got = blend_numbers(one_game, league, profile_blend_weight(1))
+        self.assertAlmostEqual(got["at_rim_freq"], 0.2)      # 0.2*0.0 + 0.8*0.25
+        self.assertAlmostEqual(got["short_mid_freq"], 0.195, places=3)

@@ -39,3 +39,22 @@ class ServiceHeaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConfidenceSampleTests(unittest.TestCase):
+    """A lopsided probability off one game is a tiny sample, not a confident read."""
+    def test_a_thin_sample_caps_the_label(self):
+        from nba_prop_analyzer.analysis.probability import classify_confidence, confidence_note
+        self.assertEqual(classify_confidence(0.92, sample_games=1), "LOW")
+        self.assertEqual(classify_confidence(0.92, sample_games=3), "LOW")
+        self.assertEqual(classify_confidence(0.92, sample_games=5), "MEDIUM")
+        self.assertEqual(classify_confidence(0.92, sample_games=10), "HIGH")
+        self.assertEqual(classify_confidence(0.92), "HIGH")            # unknown sample: unchanged
+        self.assertEqual(classify_confidence(0.52, sample_games=82), "LOW")   # a close call stays LOW
+
+    def test_the_reason_is_stated_only_while_it_applies(self):
+        from nba_prop_analyzer.analysis.probability import confidence_note
+        self.assertIn("only 1 real game", confidence_note(1))
+        self.assertIn("only 4 real games", confidence_note(4))
+        self.assertIsNone(confidence_note(10))
+        self.assertIsNone(confidence_note(None))

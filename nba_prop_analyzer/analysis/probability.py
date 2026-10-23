@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from typing import List, Optional
 from scipy.stats import norm, poisson
@@ -68,12 +70,33 @@ def _poisson_probability(
     return over_prob, under_prob
 
 
-def classify_confidence(over_prob: float) -> str:
-    """Classify prediction confidence based on how far from 50/50."""
+# How many real games must sit behind a projection before its confidence can be called
+# HIGH or MEDIUM. A lopsided probability computed off one or two games is a statement
+# about a tiny sample, not a confident read, so the label is capped rather than earned.
+_HIGH_CONFIDENCE_MIN_GAMES = 10
+_MEDIUM_CONFIDENCE_MIN_GAMES = 4
+
+
+def classify_confidence(over_prob: float, sample_games: int | None = None) -> str:
+    """
+    Confidence in a projection: how far the probability sits from 50/50, then capped by how many
+    real games back it. `sample_games` is the number of actual game logs behind the player's
+    numbers; None means "not known", which leaves the old distance-only behaviour.
+    """
     edge = abs(over_prob - 0.5)
-    if edge > 0.15:
-        return "HIGH"
-    elif edge > 0.08:
-        return "MEDIUM"
-    else:
+    level = "HIGH" if edge > 0.15 else ("MEDIUM" if edge > 0.08 else "LOW")
+    if sample_games is None:
+        return level
+    if sample_games < _MEDIUM_CONFIDENCE_MIN_GAMES:
         return "LOW"
+    if sample_games < _HIGH_CONFIDENCE_MIN_GAMES and level == "HIGH":
+        return "MEDIUM"
+    return level
+
+
+def confidence_note(sample_games: int | None) -> str | None:
+    """Says plainly when a thin sample is what is holding the confidence down."""
+    if sample_games is None or sample_games >= _HIGH_CONFIDENCE_MIN_GAMES:
+        return None
+    games = "game" if sample_games == 1 else "games"
+    return f"~ Confidence capped: only {sample_games} real {games} behind this projection"
