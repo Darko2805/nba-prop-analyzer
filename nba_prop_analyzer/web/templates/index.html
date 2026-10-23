@@ -374,25 +374,34 @@
   <!-- Biggest Edges Tonight: the engine's own output, not hand-written copy --
        same headline-factor selection real analyses use, run against tonight's
        tracked players and ranked by how extreme the result actually is. -->
-  {% if biggest_edges %}
+  {% if edge_views %}
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight</h3>
     <p class="empty-hint">The single factor that moved each projection the most, our projection against the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.</p>
     <p class="empty-hint">The line here is each player's average, rounded to the nearest half: this season's average once a player has five games, and the plain average of last season and this season so far during their first four. It is not a sportsbook line. Edge is our projection minus that line.</p>
-    <div class="edge-table-wrap">
-      <table class="edge-table">
-        <thead>
-          <tr>
-            <th class="edge-th-player">Player</th>
-            <th>Matchup</th>
-            <th class="num">Line</th>
-            <th class="num">Edge</th>
-            <th class="num">L10 Avg</th>
-            <th class="num">L10 Hit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for edge in biggest_edges %}
+    <div class="edge-tabs" role="tablist" aria-label="Filter edges by prop">
+      {% for view in edge_views %}{% if view.rows %}
+      <button type="button" class="edge-tab{{ ' active' if loop.first }}" role="tab" id="edge-tab-{{ view.key }}"
+              aria-controls="edge-panel-{{ view.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}"
+              data-view="{{ view.key }}">{{ view.label }}</button>
+      {% endif %}{% endfor %}
+    </div>
+    {% for view in edge_views %}{% if view.rows %}
+    <div class="edge-panel" id="edge-panel-{{ view.key }}" role="tabpanel" aria-labelledby="edge-tab-{{ view.key }}" data-view="{{ view.key }}"{% if not loop.first %} hidden{% endif %}>
+      <div class="edge-table-wrap">
+        <table class="edge-table">
+          <thead>
+            <tr>
+              <th class="edge-th-player">Player</th>
+              <th>Matchup</th>
+              <th class="num">Line</th>
+              <th class="num">Edge</th>
+              <th class="num">L10 Avg</th>
+              <th class="num">L10 Hit</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for edge in view.rows %}
           <tr class="edge-row" data-player="{{ edge.player }}" data-opponent="{{ edge.opponent }}" data-prop="{{ edge.prop_type }}" data-line="{{ edge.line }}">
             <td class="edge-td-player">
               <div class="player-cell">
@@ -429,9 +438,11 @@
             </td>
           </tr>
           {% endfor %}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
+    {% endif %}{% endfor %}
   </div>
   {% endif %}
 
@@ -1366,6 +1377,22 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
 }
 
 // Popular Bets quick-picks + Biggest Edges cards: fill the form and run the same analysis flow.
+// Biggest Edges: the chips swap which prop's table is shown. Every table is already in the page,
+// so switching is instant and works the same with or without JavaScript running later.
+document.querySelectorAll('.edge-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const wanted = tab.dataset.view;
+    document.querySelectorAll('.edge-tab').forEach((t) => {
+      const on = t === tab;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.edge-panel').forEach((panel) => {
+      panel.hidden = panel.dataset.view !== wanted;
+    });
+  });
+});
+
 document.querySelectorAll('.popular-card, .edge-row').forEach((card) => {
   card.addEventListener('click', () => {
     document.getElementById('player').value = card.dataset.player;

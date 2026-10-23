@@ -18,6 +18,7 @@ if _repo_root not in sys.path:
 from flask import Flask, Response, abort, render_template, request, jsonify, redirect, url_for
 from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
 from nba_prop_analyzer.analysis.headline import select_headline_factor, summarize_signal_agreement
+from nba_prop_analyzer.analysis import edge_picks
 from nba_prop_analyzer.cache import cache
 from nba_prop_analyzer.config import PROP_TYPES, COMBO_PROP_TYPES, LEGAL_VERSION, MIN_AGE
 from nba_prop_analyzer.data.team_mapping import (
@@ -86,21 +87,24 @@ def build_popular_bets(analyzer: PropAnalyzer, games_today: list) -> list:
     return picks
 
 
-_EDGE_PROP_BASELINE = {"points": "ppg", "rebounds": "rpg", "assists": "apg"}
-_EDGE_PROP_UNIT = {"points": "PTS", "rebounds": "REB", "assists": "AST"}
+# Props the Biggest Edges section looks at, each ranked on its own (see analysis/edge_picks.py).
+_EDGE_PROPS = ("points", "rebounds", "assists", "3pm", "pra")
+_EDGE_PROP_UNIT = {"points": "PTS", "rebounds": "REB", "assists": "AST", "3pm": "3PM", "pra": "PRA"}
+_EDGE_PROP_LABEL = {"points": "Points", "rebounds": "Rebounds", "assists": "Assists", "3pm": "3-pointers", "pra": "PRA"}
+# A prop line below this is not a real market for that stat (a 0.5 assist line says nothing), so it is skipped.
+_EDGE_MIN_LINE = {"points": 8, "rebounds": 3, "assists": 2, "3pm": 1.5, "pra": 15}
+_EDGE_PER_PROP = 8
 
 
-def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 8) -> list:
+def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
     """
-    The engine's own output, surfaced on the homepage instead of only
-    after you run an analysis yourself: for tonight's tracked players,
-    checks points/rebounds/assists and ranks whichever headline factors
-    came out most extreme across ALL of them -- literally what Component
-    Breakdown would show if you ran that exact matchup, not a separate
-    "homepage" claim. Reuses track_record.py's player list so there's one
-    curated roster to keep in sync, not two. Capped at one slot per
-    player so the same standout name can't fill the whole list just
-    because it's extreme in more than one stat.
+    The engine's own output, surfaced on the homepage instead of only after you run an analysis
+    yourself: for tonight's tracked players, every prop in _EDGE_PROPS is run through the same
+    analysis Component Breakdown shows for that exact matchup, and each candidate carries the single
+    factor that moved its projection the most. Only calls with a clear lean (over/under probability
+    above 55%) are kept: a row is only an "edge" if the model actually leans. Returns
+    {prop_type: [candidates, strongest first]}. Reuses track_record.py's player list so there's one
+    curated roster to keep in sync, not two.
     """
     todays_opponent_by_team = {}
     is_home_by_team = {}
@@ -127,11 +131,10 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
         if not opponent:
             continue
 
-        for prop_type, baseline_attr in _EDGE_PROP_BASELINE.items():
-            baseline = getattr(player, baseline_attr, 0)
-            if baseline <= 0:
+        for prop_type in _EDGE_PROPS:
+            line = _suggested_line(player, prop_type)
+            if line is None or line < _EDGE_MIN_LINE[prop_type]:
                 continue
-            line = _round_to_half(baseline)
             try:
                 pred = analyzer.analyze_prop(
                     player_name=player.name,
@@ -163,6 +166,8 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
             # number by the factor instead of the verdict was showing red on
             # a real projected OVER, which read as a contradiction.
             lean_direction = "up" if pred.over_probability > 0.55 else ("down" if pred.under_probability > 0.55 else "neutral")
+            if lean_direction == "neutral":
+                continue  # no lean means no edge to feature
 
             # L10 avg/hit-rate reuses analyze_prop()'s own game-log summary
             # (the same data "Recent Form vs the Line" already shows for a
@@ -185,6 +190,7 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
                 "is_home": is_home_by_team.get(normalize_team(player.team_abbr), False),
                 "prop_type": prop_type,
                 "prop_unit": _EDGE_PROP_UNIT[prop_type],
+                "prop_label": _EDGE_PROP_LABEL[prop_type],
                 "line": line,
                 "predicted_value": round(pred.predicted_value, 1),
                 "edge": round(pred.predicted_value - line, 1),
@@ -195,23 +201,43 @@ def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 
                 "l10_hits": hits_of_10,
                 "injury_status": inj["status"] if inj else None,
                 "score": headline["score"],
-                "espn_id": find_espn_player_id(player.name, player.team_abbr),
             })
 
-    candidates.sort(key=lambda c: c["score"], reverse=True)
-
-    seen_players = set()
-    top = []
+    by_prop = {prop: [] for prop in _EDGE_PROPS}
     for c in candidates:
-        if c["player"] in seen_players:
-            continue
-        seen_players.add(c["player"])
-        c["headshot"] = espn_headshot_url(c.pop("espn_id")) if c["espn_id"] else None
-        top.append(c)
-        if len(top) >= limit:
-            break
+        by_prop[c["prop_type"]].append(c)
+    for rows in by_prop.values():
+        rows.sort(key=lambda c: c["score"], reverse=True)
+    return by_prop
 
+
+def _attach_headshots(rows: list) -> None:
+    """Headshot URL per row (looked up once per player), for the rows that will actually be shown."""
+    cache = {}
+    for row in rows:
+        if row["player"] not in cache:
+            espn_id = find_espn_player_id(row["player"], row["team"])
+            cache[row["player"]] = espn_headshot_url(espn_id) if espn_id else None
+        row["headshot"] = cache[row["player"]]
+
+
+def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 8, by_prop: dict | None = None) -> list:
+    """The default list: the best edge of each prop in turn (so points cannot crowd out the rest),
+    one slot per player. Also what the track record's daily picks are drawn from."""
+    by_prop = by_prop if by_prop is not None else collect_edge_candidates(analyzer, games_today)
+    top = edge_picks.balanced_edges(by_prop, limit=limit)
+    _attach_headshots(top)
     return top
+
+
+def build_edge_views(by_prop: dict, balanced: list) -> list:
+    """The homepage's filter chips: 'All' (the balanced list) plus each prop's own strongest edges."""
+    views = [{"key": "all", "label": "All", "rows": balanced}]
+    for prop in _EDGE_PROPS:
+        rows = by_prop.get(prop, [])[:_EDGE_PER_PROP]
+        _attach_headshots(rows)
+        views.append({"key": prop, "label": _EDGE_PROP_LABEL[prop], "rows": rows})
+    return views
 
 
 def annotate_schedule_fatigue(games_today: list) -> list:
@@ -493,7 +519,9 @@ def index():
     # sections (and the opponent prefill on Quick Looks) wait for real games.
     in_season = tonight["kind"] in ("regular", "postseason")
     popular_bets = build_popular_bets(analyzer, games if in_season else []) if analyzer.is_ready() else []
-    biggest_edges = build_biggest_edges(analyzer, games) if (analyzer.is_ready() and in_season) else []
+    edge_candidates = collect_edge_candidates(analyzer, games) if (analyzer.is_ready() and in_season) else {}
+    biggest_edges = build_biggest_edges(analyzer, games, by_prop=edge_candidates) if edge_candidates else []
+    edge_views = build_edge_views(edge_candidates, biggest_edges) if biggest_edges else []
     fatigue_watch = build_fatigue_watch(games) if in_season else []
     games_annotated = annotate_schedule_fatigue(games) if in_season else games
     model_inputs = build_model_inputs()
@@ -506,6 +534,7 @@ def index():
         popular_bets=popular_bets,
         model_inputs=model_inputs,
         biggest_edges=biggest_edges,
+        edge_views=edge_views,
         fatigue_watch=fatigue_watch,
     )
 
