@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from ..data.models import TeamProfile
 from .severity import weakness_percentile, severity_bonus
+from .league_baseline import league_mean
 
-_LEAGUE_TS_PCT = 0.565  # ~league-average True Shooting %
+_LEAGUE_TS_PCT = 0.565  # fallback only; the real league mean is computed from the teams themselves
 _SEVERITY_SCALE = 0.08
 _SEVERITY_EXPONENT = 1.6
 
@@ -36,9 +37,10 @@ def calculate_teammate_efficiency_factor(
         return 1.0, "~ Teammate shooting efficiency not applicable for this prop"
 
     all_team_profiles = all_team_profiles or {}
-    team_ts = player_team.ts_pct or _LEAGUE_TS_PCT
+    league_ts = league_mean(all_team_profiles, "ts_pct", _LEAGUE_TS_PCT)
+    team_ts = player_team.ts_pct or league_ts
 
-    base_ratio = team_ts / _LEAGUE_TS_PCT - 1.0
+    base_ratio = team_ts / league_ts - 1.0
     weighted_base = base_ratio * 1.5
 
     severity = 0.0

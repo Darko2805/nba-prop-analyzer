@@ -19,10 +19,13 @@ from __future__ import annotations
 
 from ..data.models import PlayerStats, TeamProfile, OpponentDefense
 from .severity import weakness_percentile, severity_bonus as _curve_bonus
+from .league_baseline import league_mean
 
-# 2025-26 NBA approximate league-average zone benchmarks. Used as a fallback
-# only when we don't have every team's data to rank against (see
-# _zone_weakness below, which is what actually drives the exploitation score).
+# Written-down league-average zone benchmarks, used ONLY when the real per-team numbers
+# aren't available to average (see league_baseline.league_mean). They are estimates and they
+# drift: measured against the live data these sat 4-11% low in three of the four zones, which
+# made every defence in the league read as "weaker than average" and added roughly +6% to every
+# projection before any real matchup was considered.
 _LEAGUE = {
     "at_rim_acc":    0.645,   # ~64.5% at the rim
     "short_mid_acc": 0.415,   # ~41.5% short mid-range
@@ -114,11 +117,19 @@ def calculate_shot_zone_exploitation(
     opp_l_mid_acc  = opponent_defense.opp_long_mid_acc  or _LEAGUE["long_mid_acc"]
     opp_three_acc  = opponent_defense.opp_3p_pct        or _LEAGUE["three_acc"]
 
+    # The league average each zone is judged against: the real mean across every team when we have
+    # them (we almost always do), so a gap means "worse than the league actually is" rather than
+    # "worse than an estimate written down before the season".
+    lg_rim   = league_mean(all_opponent_defenses, "opp_at_rim_acc",    _LEAGUE["at_rim_acc"])
+    lg_s_mid = league_mean(all_opponent_defenses, "opp_short_mid_acc", _LEAGUE["short_mid_acc"])
+    lg_l_mid = league_mean(all_opponent_defenses, "opp_long_mid_acc",  _LEAGUE["long_mid_acc"])
+    lg_three = league_mean(all_opponent_defenses, "opp_3p_pct",        _LEAGUE["three_acc"])
+
     # Gap > 0 means opponent is weaker than league avg in that zone
-    rim_gap      = opp_rim_acc   / _LEAGUE["at_rim_acc"]    - 1.0
-    s_mid_gap    = opp_s_mid_acc / _LEAGUE["short_mid_acc"] - 1.0
-    l_mid_gap    = opp_l_mid_acc / _LEAGUE["long_mid_acc"]  - 1.0
-    three_gap    = opp_three_acc / _LEAGUE["three_acc"]     - 1.0
+    rim_gap      = opp_rim_acc   / lg_rim   - 1.0
+    s_mid_gap    = opp_s_mid_acc / lg_s_mid - 1.0
+    l_mid_gap    = opp_l_mid_acc / lg_l_mid - 1.0
+    three_gap    = opp_three_acc / lg_three - 1.0
 
     opp_notes: list[str] = []
     if abs(rim_gap) > 0.015:
@@ -243,22 +254,22 @@ def calculate_shot_zone_exploitation(
     zones = {
         "at_rim": {
             "label": "At Rim", "player_freq": round(at_rim, 3), "player_acc": round(player.at_rim_acc, 3),
-            "opp_acc": round(opp_rim_acc, 3), "league_acc": _LEAGUE["at_rim_acc"], "gap": round(rim_gap, 3),
+            "opp_acc": round(opp_rim_acc, 3), "league_acc": round(lg_rim, 3), "gap": round(rim_gap, 3),
             "rank": rim_rank, "league_size": league_n, "severity": round(rim_severity, 4),
         },
         "short_mid": {
             "label": "Short Mid", "player_freq": round(short_mid, 3), "player_acc": round(player.short_mid_acc, 3),
-            "opp_acc": round(opp_s_mid_acc, 3), "league_acc": _LEAGUE["short_mid_acc"], "gap": round(s_mid_gap, 3),
+            "opp_acc": round(opp_s_mid_acc, 3), "league_acc": round(lg_s_mid, 3), "gap": round(s_mid_gap, 3),
             "rank": s_mid_rank, "league_size": league_n, "severity": round(s_mid_severity, 4),
         },
         "long_mid": {
             "label": "Long Mid", "player_freq": round(long_mid, 3), "player_acc": round(player.long_mid_acc, 3),
-            "opp_acc": round(opp_l_mid_acc, 3), "league_acc": _LEAGUE["long_mid_acc"], "gap": round(l_mid_gap, 3),
+            "opp_acc": round(opp_l_mid_acc, 3), "league_acc": round(lg_l_mid, 3), "gap": round(l_mid_gap, 3),
             "rank": l_mid_rank, "league_size": league_n, "severity": round(l_mid_severity, 4),
         },
         "three": {
             "label": "3PT", "player_freq": round(three_rate, 3), "player_acc": round(player.three_pct, 3),
-            "opp_acc": round(opp_three_acc, 3), "league_acc": _LEAGUE["three_acc"], "gap": round(three_gap, 3),
+            "opp_acc": round(opp_three_acc, 3), "league_acc": round(lg_three, 3), "gap": round(three_gap, 3),
             "rank": three_rank, "league_size": league_n, "severity": round(three_severity, 4),
         },
     }

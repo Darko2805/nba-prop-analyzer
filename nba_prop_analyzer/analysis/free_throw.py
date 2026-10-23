@@ -17,8 +17,9 @@ from __future__ import annotations
 
 from ..data.models import PlayerStats, OpponentDefense
 from .severity import weakness_percentile, severity_bonus
+from .league_baseline import league_mean
 
-_LEAGUE_OPP_FTA = 25.0  # ~league-average opponent FTA allowed per game
+_LEAGUE_OPP_FTA = 25.0  # fallback only; the real league mean is computed from the teams themselves
 _SEVERITY_SCALE = 0.10
 _SEVERITY_EXPONENT = 1.6
 
@@ -41,11 +42,12 @@ def calculate_free_throw_factor(
 
     all_opponent_defenses = all_opponent_defenses or {}
     ft_rate = max(player.ft_rate, 0.0)
-    opp_fta = opponent_defense.opp_fta or _LEAGUE_OPP_FTA
+    league_fta = league_mean(all_opponent_defenses, "opp_fta", _LEAGUE_OPP_FTA)
+    opp_fta = opponent_defense.opp_fta or league_fta
 
     # Base ratio vs league average, weighted by how much this player's own
     # scoring leans on free throws (same usage-weighting idea as shot_zone).
-    base_gap = opp_fta / _LEAGUE_OPP_FTA - 1.0
+    base_gap = opp_fta / league_fta - 1.0
     weighted_base = ft_rate * base_gap * 2.0
 
     severity = 0.0
