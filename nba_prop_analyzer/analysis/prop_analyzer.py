@@ -202,6 +202,14 @@ class PropAnalyzer:
             return blend_numbers(current, prior, weight)
         return current or prior or None
 
+    def _current_season_logs(self, player) -> list:
+        """
+        Only this season's games. Form is a claim about how a player is playing NOW, so the trend
+        factor reads these alone: the combined list ends with last season's final games, and using
+        it meant a strong April was still being reported as a "hot streak" in October.
+        """
+        return snapshot_store.load_game_logs(player.name) or []
+
     def _game_logs_for(self, player) -> list:
         """Last season's games followed by this season's, oldest first, so recent form (L5/L10/trend), hit
         rates and head-to-head history are meaningful from the first game of a new season."""
@@ -308,7 +316,7 @@ class PropAnalyzer:
                 fetch_back_to_back_teams(), fetch_three_in_four_teams(),
             )
             trend_factor, trend_note = estimate_trend_factor(
-                player, prop_type, game_logs=game_logs
+                player, prop_type, game_logs=self._current_season_logs(player)
             )
 
         # Compute adjusted prediction
@@ -473,7 +481,7 @@ class PropAnalyzer:
             te, te_note = calculate_teammate_efficiency_factor(
                 player_team, comp, self.team_profiles
             )
-            t, t_note = estimate_trend_factor(player, comp, game_logs=game_logs)
+            t, t_note = estimate_trend_factor(player, comp, game_logs=self._current_season_logs(player))
 
             matchup_factor += weight * m
             zone_factor += weight * z

@@ -2,6 +2,10 @@ from typing import List, Optional
 from ..data.models import PlayerStats
 from ..data.bbref_scraper import GameLog, get_recent_games, get_stat_from_games
 
+# Form needs a real sample. Five matches the threshold the rest of the model uses for trusting
+# this season over last.
+MIN_GAMES_FOR_TREND = 5
+
 # Manual trend overrides set by CLI --trend flag
 _manual_trends = {}
 
@@ -31,11 +35,14 @@ def estimate_trend_factor(
             note = f"- Manual trend override: {diff_pct:+.1f}% (cold streak)"
         return manual, note
 
-    # Use real game logs if available
-    if game_logs and len(game_logs) >= 5:
+    # Only this season's games count as form (see PropAnalyzer._current_season_logs), so early in
+    # the season there is nothing to read yet and the factor stays neutral rather than inventing one.
+    if game_logs and len(game_logs) >= MIN_GAMES_FOR_TREND:
         return _compute_trend_from_logs(player, prop_type, game_logs)
 
-    return 1.0, "~ Trend: neutral (no game logs available, use --trend for override)"
+    played = len(game_logs) if game_logs else 0
+    games = "game" if played == 1 else "games"
+    return 1.0, f"~ Trend: neutral ({played} {games} this season, {MIN_GAMES_FOR_TREND} needed to read form)"
 
 
 def _compute_trend_from_logs(
@@ -43,7 +50,7 @@ def _compute_trend_from_logs(
     prop_type: str,
     game_logs: List[GameLog],
 ) -> tuple:
-    """Compare last 5 games vs last 15 games (or season) to detect hot/cold streaks."""
+    """Compare the last 5 games with the last 15 (this season only) to detect hot/cold streaks."""
     last_5 = get_recent_games(game_logs, 5)
     last_5_vals = get_stat_from_games(last_5, prop_type)
 

@@ -93,3 +93,40 @@ class FreeThrowCountsOnceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrendUsesThisSeasonOnlyTests(unittest.TestCase):
+    """
+    "Hot streak" must mean hot NOW. The model's game logs run last season then this season, so
+    reading the last 5 of that list meant a strong April was still reported as a hot streak in
+    October -- for a third of the league.
+    """
+    def logs(self, points):
+        from nba_prop_analyzer.data.bbref_scraper import GameLog
+        return [GameLog(date=f"2026-10-{10+i:02d}", opponent="X", result="W", minutes=30.0, pts=p,
+                        reb=5, ast=5, fg3=2, fg3a=5, orb=1, drb=4, fga=15, fgm=7, fta=4, ftm=3, tov=2)
+                for i, p in enumerate(points)]
+
+    def test_fewer_than_five_games_this_season_reads_no_form_at_all(self):
+        from nba_prop_analyzer.analysis.trends import estimate_trend_factor, MIN_GAMES_FOR_TREND
+        for n in range(MIN_GAMES_FOR_TREND):
+            f, note = estimate_trend_factor(player(), "points", game_logs=self.logs([30] * n))
+            self.assertEqual(f, 1.0, f"{n} games should be neutral")
+            self.assertIn("this season", note)
+
+    def test_enough_games_does_read_form(self):
+        from nba_prop_analyzer.analysis.trends import estimate_trend_factor
+        hot, _ = estimate_trend_factor(player(), "points", game_logs=self.logs([10, 10, 10, 10, 10, 30, 30, 30, 30, 30]))
+        cold, _ = estimate_trend_factor(player(), "points", game_logs=self.logs([30, 30, 30, 30, 30, 10, 10, 10, 10, 10]))
+        self.assertGreater(hot, 1.0)
+        self.assertLess(cold, 1.0)
+
+    def test_the_analyzer_feeds_it_only_this_seasons_games(self):
+        """The real wiring: _current_season_logs must exclude last season, which _game_logs_for includes."""
+        from nba_prop_analyzer.analysis.prop_analyzer import PropAnalyzer
+        import inspect
+        src = inspect.getsource(PropAnalyzer.analyze_prop)
+        self.assertIn("self._current_season_logs(player)", src)
+        self.assertNotIn("estimate_trend_factor(\n                player, prop_type, game_logs=game_logs", src)
+        current = inspect.getsource(PropAnalyzer._current_season_logs)
+        self.assertNotIn("prev=True", current)
