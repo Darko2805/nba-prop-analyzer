@@ -40,6 +40,21 @@ _LEAGUE = {
 # These are the only two "hardcoded" numbers left in the severity curve
 # itself — everything else is computed live from where the opponent actually
 # ranks against the rest of the league, not a fixed ratio-to-average.
+# How far a single zone matchup is ever allowed to move a projection. The strongest real matchups
+# hit these, so they set the model's most extreme claim: at 1.28 the best matchup on the board adds
+# 28% to a player's scoring.
+# How the usage-weighted gap and the extreme-rank bonus are combined. The gap is already the
+# expected change in scoring efficiency (a player taking 51% of his shots from three against a
+# defence allowing 6.5% better three-point shooting is worth +3.3% on its own), so it is counted
+# once. The rank bonus re-reads the same weakness from a different angle, so it is kept at half
+# strength: enough to say a dead-last defence is worse than linearly bad, without charging twice.
+# Measured on a 12-game slate, x2.0 + full rank turned Sacramento's real +8.2% into +28%.
+GAP_AMPLIFIER = 1.0
+SEVERITY_WEIGHT = 0.5
+
+ZONE_FACTOR_MIN = 0.78
+ZONE_FACTOR_MAX = 1.28
+
 _SEVERITY_SCALE = 0.14
 _SEVERITY_EXPONENT = 1.6
 
@@ -224,13 +239,13 @@ def calculate_shot_zone_exploitation(
     # at_rim > 0.25, so it isn't double-counted here.)
     if prop_type in ("3pm", "3pa"):
         # For 3-point props (makes or attempts), weight three_gap much more heavily
-        base_factor = 1.0 + three_gap * 1.0 + weighted_gap * 0.5 + three_severity * 1.0 + weighted_severity * 0.5
+        base_factor = (1.0 + (three_gap + weighted_gap * 0.5) * (GAP_AMPLIFIER / 2.0)
+                       + (three_severity + weighted_severity * 0.5) * SEVERITY_WEIGHT)
     else:
         # Amplify: weighted_gap of 0.05 → ~+10% factor
-        base_factor = 1.0 + weighted_gap * 2.0 + weighted_severity * 1.0
+        base_factor = 1.0 + weighted_gap * GAP_AMPLIFIER + weighted_severity * SEVERITY_WEIGHT
 
-    factor = base_factor
-    factor = max(0.78, min(factor, 1.28))
+    factor = max(ZONE_FACTOR_MIN, min(base_factor, ZONE_FACTOR_MAX))
 
     # Summary line
     if factor >= 1.10:

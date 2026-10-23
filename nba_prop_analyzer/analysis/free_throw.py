@@ -19,6 +19,11 @@ from ..data.models import PlayerStats, OpponentDefense
 from .severity import weakness_percentile, severity_bonus
 from .league_baseline import league_mean
 
+# Same two knobs as shot_zone, same reasoning: the gap is already weighted by how much the
+# player's scoring leans on free throws, so it counts once, and the rank bonus at half strength.
+GAP_AMPLIFIER = 1.0
+SEVERITY_WEIGHT = 0.5
+
 _LEAGUE_OPP_FTA = 25.0  # fallback only; the real league mean is computed from the teams themselves
 _SEVERITY_SCALE = 0.10
 _SEVERITY_EXPONENT = 1.6
@@ -48,7 +53,7 @@ def calculate_free_throw_factor(
     # Base ratio vs league average, weighted by how much this player's own
     # scoring leans on free throws (same usage-weighting idea as shot_zone).
     base_gap = opp_fta / league_fta - 1.0
-    weighted_base = ft_rate * base_gap * 2.0
+    weighted_base = ft_rate * base_gap * GAP_AMPLIFIER
 
     severity = 0.0
     rank = n = 0
@@ -56,7 +61,7 @@ def calculate_free_throw_factor(
     if all_opponent_defenses:
         population = [o.opp_fta for o in all_opponent_defenses.values() if o.opp_fta > 0]
         pct, rank, n = weakness_percentile(opp_fta, population)
-        severity = severity_bonus(pct, scale=_SEVERITY_SCALE, exponent=_SEVERITY_EXPONENT) * ft_rate
+        severity = severity_bonus(pct, scale=_SEVERITY_SCALE, exponent=_SEVERITY_EXPONENT) * ft_rate * SEVERITY_WEIGHT
 
     factor = 1.0 + weighted_base + severity
     factor = max(0.92, min(factor, 1.14))
