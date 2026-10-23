@@ -19,7 +19,7 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, ROOT)
 
 from nba_prop_analyzer.cache import cache
-from nba_prop_analyzer.config import TEAM_BLEND_K, PLAYER_FULL_TRUST_GAMES, PLAYER_EARLY_WEIGHT
+from nba_prop_analyzer.config import TEAM_BLEND_K, PLAYER_FULL_TRUST_GAMES
 from nba_prop_analyzer.data import snapshot_store, databallr_client
 from nba_prop_analyzer.data.bbref_scraper import GameLog
 from nba_prop_analyzer.data.season_blend import blend_weight, player_blend_weight
@@ -123,13 +123,13 @@ class SeasonBlendTest(unittest.TestCase):
     # ---- players ----
     @staticmethod
     def _expected_weight(games):
-        return 1.0 if games >= PLAYER_FULL_TRUST_GAMES else PLAYER_EARLY_WEIGHT
+        return min(1.0, games / PLAYER_FULL_TRUST_GAMES)
 
-    def test_player_weights_follow_the_five_game_rule(self):
-        # LeBron 10 games and Tatum 30 -> this season alone; Curry 1 game -> an equal mix of the two seasons
+    def test_player_weights_follow_the_five_game_ramp(self):
+        # LeBron 10 games and Tatum 30 -> this season alone; Curry 1 game -> a fifth of the way
         self.assertEqual(self.by_name["LeBron James"].blend_weight, 1.0)
         self.assertEqual(self.by_name["Jayson Tatum"].blend_weight, 1.0)
-        self.assertEqual(self.by_name["Stephen Curry"].blend_weight, 0.5)
+        self.assertAlmostEqual(self.by_name["Stephen Curry"].blend_weight, 0.2)
 
     def test_player_stats_are_a_weighted_mix(self):
         for name, games in (("LeBron James", 10), ("Jayson Tatum", 30), ("Stephen Curry", 1)):
@@ -138,9 +138,9 @@ class SeasonBlendTest(unittest.TestCase):
             self.assertAlmostEqual(self.by_name[name].ppg, w * prior * 1.5 + (1 - w) * prior, places=6)
             self.assertEqual(self.by_name[name].games_played, games)
 
-    def test_one_game_is_exactly_the_plain_average_of_last_season_and_this_season_so_far(self):
+    def test_one_game_moves_the_number_only_a_fifth_of_the_way(self):
         prior = self.prior_players["Stephen Curry"]["ppg"]
-        self.assertAlmostEqual(self.by_name["Stephen Curry"].ppg, (prior + prior * 1.5) / 2, places=9)
+        self.assertAlmostEqual(self.by_name["Stephen Curry"].ppg, 0.8 * prior + 0.2 * prior * 1.5, places=9)
 
     def test_player_without_new_games_is_exactly_last_season(self):
         p, prior = self.by_name["Nikola Jokić"], self.prior_players["Nikola Jokić"]
@@ -206,20 +206,23 @@ class SeasonBlendTest(unittest.TestCase):
 
 
 class PlayerBlendRuleTest(unittest.TestCase):
-    """The rule in one place: 0 games -> last season; 1-4 -> equal mix; 5+ -> this season; no history -> this season."""
+    """The rule in one place: 0 games -> last season; a ramp to 100% at five games; no history -> this season."""
     def test_with_a_last_season(self):
         self.assertEqual(player_blend_weight(0), 0.0)
-        for games in (1, 2, 3, 4):
-            self.assertEqual(player_blend_weight(games), 0.5, games)
+        for games, expected in ((1, 0.2), (2, 0.4), (3, 0.6), (4, 0.8)):
+            self.assertAlmostEqual(player_blend_weight(games), expected, msg=games)
         for games in (5, 6, 20, 82):
             self.assertEqual(player_blend_weight(games), 1.0, games)
+
+    def test_a_single_game_can_never_outweigh_a_full_prior_season(self):
+        self.assertLess(player_blend_weight(1), 0.5)
 
     def test_without_a_last_season_the_real_numbers_count_fully(self):
         for games in (1, 2, 4, 5, 30):
             self.assertEqual(player_blend_weight(games, has_last_season=False), 1.0, games)
 
-    def test_the_jump_at_five_games_is_the_rules_only_step(self):
-        self.assertEqual(player_blend_weight(4), 0.5)
+    def test_it_reaches_this_season_alone_exactly_at_five_games(self):
+        self.assertAlmostEqual(player_blend_weight(4), 0.8)
         self.assertEqual(player_blend_weight(5), 1.0)
 
 

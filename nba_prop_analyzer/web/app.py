@@ -757,7 +757,7 @@ def _average_label(player) -> str:
     if weight <= 0:
         return "Last season's average"
     if weight < 1:
-        return f"Early-season average (last season blended with {games} game{plural} this season)"
+        return f"Early-season average ({games} game{plural} this season, {weight:.0%} of the number, rest last season)"
     return f"Season average ({games} game{plural})"
 
 

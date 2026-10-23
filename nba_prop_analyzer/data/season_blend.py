@@ -5,9 +5,9 @@ The new season's numbers are tiny samples for the first games while last season'
 slightly stale, so the two are mixed by a weight on the new season.
 
 Teams: weight = games / (games + K), growing continuously with the games played.
-Players: a plain rule (see player_blend_weight) -- last season alone before the opener, an equal mix
-for games 1 to 4, this season alone from game 5, and this season alone from game 1 for a player who
-has no last season.
+Players: see player_blend_weight -- last season alone before the opener, then this season's weight
+ramps with the games played (20% after one, 100% at five), and a player with no last season uses
+their own real numbers from game one.
 """
 from __future__ import annotations
 
@@ -19,14 +19,18 @@ def blend_weight(games: float, k: float) -> float:
     return games / (games + k) if games and games > 0 else 0.0
 
 
-def player_blend_weight(games: float, has_last_season: bool = True,
-                        full_trust_games: int = 5, early_weight: float = 0.5) -> float:
-    """Weight on this season for a player. 0 = last season only, 1 = this season only."""
-    if not games or games <= 0:
-        return 0.0 if has_last_season else 1.0
-    if not has_last_season or games >= full_trust_games:
+def player_blend_weight(games: float, has_last_season: bool = True, full_trust_games: int = 5) -> float:
+    """
+    Weight on this season for a player's averages. 0 = last season only, 1 = this season only.
+    The weight ramps with the games played (1 of 5 games = 20%) and reaches this season alone at
+    `full_trust_games`, so no single night can outweigh a full prior season. A player with no last
+    season has nothing to ramp from, so their own real numbers are used from the first game.
+    """
+    if not has_last_season:
         return 1.0
-    return early_weight
+    if not games or games <= 0:
+        return 0.0
+    return min(1.0, games / full_trust_games)
 
 
 def profile_blend_weight(games: float, full_trust_games: int = 5) -> float:

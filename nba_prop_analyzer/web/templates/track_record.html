@@ -50,7 +50,7 @@
           <div class="value">{{ summary.hit_rate ~ '%' if summary.hit_rate is not none else '—' }}</div>
         </div>
       </div>
-      <p class="empty-hint" style="margin-top:1rem;">The line on every pick is that player's average, rounded to the nearest half: this season's average once they have five games, and the plain average of last season and this season so far during their first four. It is not a sportsbook line. A pick counts as correct when the player finished on the side we called. Pushes and players who did not play are not counted either way.{% if summary.pending %} {{ summary.pending }} pick{{ '' if summary.pending == 1 else 's' }} still pending: the game has not finished or its box score has not been collected yet.{% endif %}</p>
+      <p class="empty-hint" style="margin-top:1rem;">The line on every pick is that player's average, rounded to the nearest half: last season's until they have games this season, then shifting toward this season a fifth at a time and resting on this season alone from their fifth game. It is not a sportsbook line. A pick counts as correct when the player finished on the side we called. Pushes and players who did not play are not counted either way.{% if summary.pending %} {{ summary.pending }} pick{{ '' if summary.pending == 1 else 's' }} still pending: the game has not finished or its box score has not been collected yet.{% endif %}</p>
     </section>
 
     {% if days %}

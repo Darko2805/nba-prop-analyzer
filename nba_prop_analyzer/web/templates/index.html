@@ -378,7 +378,7 @@
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight</h3>
     <p class="empty-hint">The single factor that moved each projection the most, our projection against the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.</p>
-    <p class="empty-hint">The line here is each player's average, rounded to the nearest half: this season's average once a player has five games, and the plain average of last season and this season so far during their first four. It is not a sportsbook line. Edge is our projection minus that line.</p>
+    <p class="empty-hint">The line here is each player's average, rounded to the nearest half: last season's until a player has games this season, then shifting toward this season a fifth at a time and resting on this season alone from their fifth game. It is not a sportsbook line. Edge is our projection minus that line.</p>
     <div class="edge-tabs" role="tablist" aria-label="Filter edges by prop">
       {% for view in edge_views %}{% if view.rows %}
       <button type="button" class="edge-tab{{ ' active' if loop.first }}" role="tab" id="edge-tab-{{ view.key }}"

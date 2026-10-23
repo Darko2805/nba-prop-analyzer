@@ -9,13 +9,13 @@ PRIOR_SEASON_YEAR = 2026
 # early games earn trust continuously (rosters turn over, hence the larger K).
 TEAM_BLEND_K = 15
 # Players use a simple rule instead, so the number a visitor sees can be explained in a sentence:
-#   no games yet this season   -> last season's numbers
-#   1 to 4 games               -> last season and this season so far count equally
-#   5 or more games            -> this season's numbers alone
+# this season's weight grows with the games actually played and reaches 100% at the fifth game
+#   0 games -> last season   1g -> 20%   2g -> 40%   3g -> 60%   4g -> 80%   5g+ -> this season alone
+# A flat early split was tried first and gave a single game the same weight as a whole 82-game season
+# (one 13-point night moved a 27.7 ppg player to 20.4), so the weight ramps instead of jumping.
 # A player with no last-season row (a rookie, or someone who missed the year) uses this season's real
 # numbers alone from the first game: nothing is invented to stand in for a history they do not have.
 PLAYER_FULL_TRUST_GAMES = 5
-PLAYER_EARLY_WEIGHT = 0.5
 DATABALLR_TEAM_URL = "https://api.databallr.com/v1/nba/teams/stats"
 ESPN_OPPONENT_STATS_URL = "https://www.espn.com/nba/stats/team/_/view/opponent"
 ESPN_TEAMS_API_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"
