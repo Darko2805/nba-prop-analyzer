@@ -69,8 +69,16 @@ run() {
   echo "=== $(date '+%Y-%m-%d %H:%M:%S') daily refresh starting"
 
   echo "[1/3] fast refresh"
-  python3 -u scripts/refresh_snapshot.py --fast 2>&1 | grep -v "Warning\|warnings.warn" | sed 's/^/  /'
-  [ "${PIPESTATUS[0]}" -eq 0 ] || fail "fast refresh did not complete (data left untouched)"
+  # Retry before giving up: on 2026-10-24 a catch-up run started while the Mac's network was still
+  # coming back, the very first fetch got "Connection refused", and the whole day was lost -- no
+  # picks recorded and nothing graded. A transient blip should cost minutes, not a day.
+  for attempt in 1 2 3; do
+    python3 -u scripts/refresh_snapshot.py --fast 2>&1 | grep -v "Warning\|warnings.warn" | sed 's/^/  /'
+    [ "${PIPESTATUS[0]}" -eq 0 ] && break
+    [ "$attempt" = 3 ] && fail "fast refresh did not complete after 3 attempts (data left untouched)"
+    echo "  attempt $attempt failed (likely network); retrying in 3 minutes"
+    sleep 180
+  done
   publish "chore: refresh data snapshot, fast ($TODAY)"
   confirm_deploy refreshed_at
 
