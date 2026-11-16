@@ -20,6 +20,8 @@ from .teammate_efficiency import calculate_teammate_efficiency_factor
 from .rest_fatigue import calculate_rest_factor
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
 from .probability import estimate_probability, classify_confidence, confidence_note
+from .core_projection import core_estimate, core_note, resize_factor
+
 
 
 class PropAnalyzer:
@@ -319,7 +321,15 @@ class PropAnalyzer:
                 player, prop_type, game_logs=self._current_season_logs(player)
             )
 
-        # Compute adjusted prediction
+        # Same eight factors as before, resized to what real results support (see core_projection.py):
+        # each opponent factor keeps its direction and its note but moves the number a quarter as far,
+        # and the trend slot is now minutes and form (per-minute production x expected minutes).
+        matchup_factor, pace_factor, zone_factor, volume_factor, ft_factor, teammate_factor, rest_factor = (
+            resize_factor(f) for f in
+            (matchup_factor, pace_factor, zone_factor, volume_factor, ft_factor, teammate_factor, rest_factor))
+        if trend_override == 1.0:
+            trend_factor, trend_note = self._core_factor(player, prop_type, baseline)
+
         adjusted = (
             baseline * matchup_factor * pace_factor * zone_factor * volume_factor
             * ft_factor * teammate_factor * rest_factor * trend_factor
@@ -411,6 +421,16 @@ class PropAnalyzer:
             key_factors=key_factors,
             breakdown=breakdown,
         )
+
+    def _core_factor(self, player, prop_type, baseline):
+        """core estimate / season average, with its note. Combos add up their components' estimates."""
+        current = self._current_season_logs(player)
+        prior = snapshot_store.load_game_logs(player.name, prev=True) or []
+        estimate, details = core_estimate(prop_type, current, prior)
+        if estimate is None or not baseline or baseline <= 0:
+            return 1.0, core_note(1.0, {})
+        ratio = estimate / baseline
+        return ratio, core_note(ratio, details)
 
     def _get_baseline(self, player, prop_type):
         if prop_type == "points":

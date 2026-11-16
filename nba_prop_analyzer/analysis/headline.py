@@ -132,7 +132,7 @@ _FACTOR_LABELS = {
     "free_throw": "Free Throws",
     "teammate_efficiency": "Teammate Efficiency",
     "rest_fatigue": "Schedule Fatigue",
-    "trend": "Trend",
+    "trend": "Minutes & form",
 }
 
 
