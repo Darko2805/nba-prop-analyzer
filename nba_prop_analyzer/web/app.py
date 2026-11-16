@@ -122,6 +122,7 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
     except Exception:
         injuries_by_player = {}
     players_out = _players_out()
+    out_names = set(players_out)
 
     candidates = []
     for name in track_record.TRACKED_PLAYERS:
@@ -131,6 +132,8 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
         opponent = todays_opponent_by_team.get(normalize_team(player.team_abbr))
         if not opponent:
             continue
+        if player.name in out_names:
+            continue  # ruled out tonight: there is no prop to have an edge on
 
         for prop_type in _EDGE_PROPS:
             line = _suggested_line(player, prop_type)
@@ -155,6 +158,7 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
             }
             headline = select_headline_factor(factor_values, prop_type)
             note = bd.get(f"{headline['factor']}_note", "").lstrip("+-~ ").strip()
+            note = note.split(" at a per-minute rate")[0]  # the table shows the short form
             if not note or headline["deviation"] < 0.01:
                 continue  # nothing notable enough to feature
 
@@ -198,6 +202,8 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
                 "edge": round(pred.predicted_value - line, 1),
                 "headline_note": note,
                 "lean_direction": lean_direction,
+                "lean_label": "Over" if lean_direction == "up" else "Under",
+                "lean_pct": round(max(pred.over_probability, pred.under_probability) * 100),
                 "l10_avg": l10_avg,
                 "l10_hit_pct": l10_hit_pct,
                 "l10_hits": hits_of_10,

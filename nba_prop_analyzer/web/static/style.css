@@ -1851,3 +1851,72 @@ html { scroll-behavior: auto; }
   #analyzeForm .form-row > .form-group:last-child { grid-column: 1 / -1; }
   .combo-list { max-height: 260px; }
 }
+
+/* ---- Nov 2026 clarity pass: the call first, the reasons second, the working on request ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--card-border) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 4px; }
+
+.hero { padding: 1.75rem 0 1.5rem; }
+.hero-title { font-size: 2.1rem; margin-bottom: 0.6rem; max-width: none; }
+.hero-sub { margin-bottom: 0; }
+.hero-actions { margin-top: 1.1rem; }
+.hero-btn { padding: 0.55rem 1.1rem; font-size: 0.88rem; }
+
+.verdict { margin-bottom: 1.25rem; }
+.verdict .lean-badge { margin-top: 0; font-size: 1.15rem; padding: 0.4rem 0.9rem; }
+.verdict .confidence-badge { vertical-align: middle; }
+.verdict-line { margin-top: 0.75rem; font-size: 1rem; line-height: 1.5; color: var(--text); max-width: 60ch; }
+.prob-label { width: 60px; }
+.prob-bar-wrap { height: 22px; }
+.stat-box--key { outline: 1px solid var(--accent-glow); }
+
+.headline-label, .factor-chain-label { text-transform: none; letter-spacing: 0; }
+
+.factor-details { padding: 0; }
+.factor-details > summary {
+  padding: 1rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.factor-details > summary:hover { color: var(--accent); }
+.factor-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+.factor-details[open] > summary { border-bottom: 1px solid var(--card-border); }
+.factor-details > #factors { padding: 0.5rem 1.25rem 1rem; }
+.factor-count { color: var(--text-muted); font-weight: 400; }
+
+.how-line { margin: -0.4rem 0 1rem; font-size: 0.82rem; color: var(--text-muted); }
+.how-line > summary { cursor: pointer; color: var(--accent); width: fit-content; }
+.how-line > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.how-line > p { margin-top: 0.5rem; line-height: 1.55; max-width: 70ch; }
+
+.stack-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; }
+.stack-sub { font-size: 0.72rem; color: var(--text-muted); }
+.hit-frac-main { color: var(--text); white-space: nowrap; }
+.lean-pill {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lean-pill.up { background: var(--green-bg); color: var(--green); }
+.lean-pill.down { background: var(--red-bg); color: var(--red); }
+.edge-table th { text-transform: none; letter-spacing: 0; font-size: 0.74rem; }
+.edge-table td { padding: 0.9rem 0.85rem; }
+.edge-row:focus-visible td { background: rgba(255, 255, 255, 0.04); }
+
+@media (max-width: 640px) {
+  .hero { padding: 1.25rem 0 1rem; }
+  .hero-title { font-size: 1.7rem; }
+  .verdict .confidence-badge { margin-left: 0.35rem; }
+  .prob-pct { font-size: 1.1rem; }
+}
+.edge-td-player { min-width: 190px; }
+.edge-table { min-width: 560px; }
+.edge-table th, .edge-table td { padding-left: 0.6rem; padding-right: 0.6rem; }

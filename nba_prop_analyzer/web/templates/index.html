@@ -95,10 +95,9 @@
     <span class="hero-eyebrow">NBA Player Prop Analytics</span>
     <h1 class="hero-title">Find the <span class="hero-accent">edge</span> before tip-off</h1>
     <p class="hero-sub">We break down the matchup with real season data and league-wide rankings — the bet is still yours to make.</p>
-    <div class="hero-actions">
-      <a href="#analyzeForm" class="hero-btn hero-btn--primary">Analyze a Prop</a>
-      {% if biggest_edges %}<a href="#top-picks" class="hero-btn hero-btn--secondary">See Top Picks</a>{% endif %}
-    </div>
+    {% if biggest_edges %}<div class="hero-actions">
+      <a href="#top-picks" class="hero-btn hero-btn--secondary">See tonight's biggest edges</a>
+    </div>{% endif %}
   </section>
 
   <div class="dossier">
@@ -109,7 +108,7 @@
     <form id="analyzeForm">
       <div class="form-row">
         <div class="form-group player-group">
-          <label for="player">Player Name</label>
+          <label for="player">Player</label>
           <div class="combo">
             <input type="text" id="player" placeholder="Start typing a first or last name" required
                    autocomplete="off" autocapitalize="words" spellcheck="false"
@@ -128,7 +127,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Prop Type</label>
+          <label>Stat</label>
           <select id="prop_type" required>
             <option value="points">Points</option>
             <option value="rebounds">Rebounds</option>
@@ -176,46 +175,81 @@
 
     <!-- Probability -->
     <div class="prob-card">
+      <div class="verdict">
+        <span class="lean-badge" id="leanBadge"></span>
+        <span class="confidence-badge" id="confBadge"></span>
+        <p class="verdict-line" id="verdictLine"></p>
+      </div>
       <div class="prob-row">
-        <span class="prob-label" style="color:var(--green)">OVER</span>
+        <span class="prob-label" style="color:var(--green)">Over</span>
         <div class="prob-bar-wrap">
           <div class="prob-bar over" id="overBar"></div>
         </div>
         <span class="prob-pct" id="overPct" style="color:var(--green)"></span>
       </div>
       <div class="prob-row">
-        <span class="prob-label" style="color:var(--red)">UNDER</span>
+        <span class="prob-label" style="color:var(--red)">Under</span>
         <div class="prob-bar-wrap">
           <div class="prob-bar under" id="underBar"></div>
         </div>
         <span class="prob-pct" id="underPct" style="color:var(--red)"></span>
       </div>
 
-      <div style="text-align:center; margin-top:1rem;">
-        <span class="lean-badge" id="leanBadge"></span>
-        <span class="confidence-badge" id="confBadge"></span>
-      </div>
-
       <div class="stat-row">
         <div class="stat-box">
-          <div class="label">Season Avg</div>
-          <div class="value" id="seasonAvg"></div>
+          <div class="label">Line</div>
+          <div class="value" id="propLine"></div>
         </div>
-        <div class="stat-box">
-          <div class="label">Projection</div>
+        <div class="stat-box stat-box--key">
+          <div class="label">Our projection</div>
           <div class="value" id="projection" style="color:var(--accent)"></div>
         </div>
         <div class="stat-box">
-          <div class="label">Prop Line</div>
-          <div class="value" id="propLine"></div>
+          <div class="label">Season average</div>
+          <div class="value" id="seasonAvg"></div>
         </div>
       </div>
     </div>
 
-    <!-- Key Factors -->
+    <!-- Component Breakdown -->
     <div class="section-card">
-      <h3>Key Factors</h3>
-      <div id="factors"></div>
+      <h3>Why the projection moved</h3>
+
+      <!-- Headline driver: whichever factor actually earns the spotlight,
+           via select_headline_factor() weighing importance per prop type,
+           not just whichever multiplier is furthest from 1.0 -->
+      <div class="headline-driver" id="headlineDriver">
+        <div class="headline-body">
+          <div class="headline-label">Biggest factor</div>
+          <div class="headline-text" id="headlineText"></div>
+        </div>
+        <div class="headline-impact">
+          <div class="headline-impact-value" id="headlineImpactValue"></div>
+          <div class="headline-impact-unit" id="headlineImpactUnit"></div>
+        </div>
+      </div>
+
+      <!-- Also factored in: the same real multiplier chain, condensed to one
+           row so it still reads as an actual computation, not just claims -->
+      <div class="factor-chain-label">How the average becomes the projection</div>
+      <div class="factor-chain" id="factorChain"></div>
+
+      <!-- Conviction: how many of the other signals agree with the direction
+           the projection actually moved -->
+      <div class="conviction-banner" id="convictionBanner">
+        <svg width="18" height="18" viewBox="0 0 20 20" class="conviction-icon" id="convictionIcon"><path d="M4 14 L10 6 L16 14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="conviction-headline" id="convictionHeadline"></span>
+        <span class="conviction-detail" id="convictionDetail"></span>
+      </div>
+    </div>
+
+    <!-- Recent Form vs the Line -->
+    <div class="section-card" id="gameLogSection" style="display:none">
+      <h3>Recent Form vs the Line</h3>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 700 200" class="chart-svg" id="gameLogChart" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="game-log-summary" id="gameLogSummary"></div>
     </div>
 
     <!-- Shot Zone Exploitation Court -->
@@ -323,46 +357,12 @@
       </div>
     </div>
 
-    <!-- Recent Form vs the Line -->
-    <div class="section-card" id="gameLogSection" style="display:none">
-      <h3>Recent Form vs the Line</h3>
-      <div class="chart-wrap">
-        <svg viewBox="0 0 700 200" class="chart-svg" id="gameLogChart" preserveAspectRatio="xMidYMid meet"></svg>
-      </div>
-      <div class="game-log-summary" id="gameLogSummary"></div>
-    </div>
-
-    <!-- Component Breakdown -->
-    <div class="section-card">
-      <h3>Component Breakdown</h3>
-
-      <!-- Headline driver: whichever factor actually earns the spotlight,
-           via select_headline_factor() weighing importance per prop type,
-           not just whichever multiplier is furthest from 1.0 -->
-      <div class="headline-driver" id="headlineDriver">
-        <div class="headline-body">
-          <div class="headline-label">THE HEADLINE</div>
-          <div class="headline-text" id="headlineText"></div>
-        </div>
-        <div class="headline-impact">
-          <div class="headline-impact-value" id="headlineImpactValue"></div>
-          <div class="headline-impact-unit" id="headlineImpactUnit"></div>
-        </div>
-      </div>
-
-      <!-- Also factored in: the same real multiplier chain, condensed to one
-           row so it still reads as an actual computation, not just claims -->
-      <div class="factor-chain-label">ALSO FACTORED IN — THE FULL CHAIN</div>
-      <div class="factor-chain" id="factorChain"></div>
-
-      <!-- Conviction: how many of the other signals agree with the direction
-           the projection actually moved -->
-      <div class="conviction-banner" id="convictionBanner">
-        <svg width="18" height="18" viewBox="0 0 20 20" class="conviction-icon" id="convictionIcon"><path d="M4 14 L10 6 L16 14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-        <span class="conviction-headline" id="convictionHeadline"></span>
-        <span class="conviction-detail" id="convictionDetail"></span>
-      </div>
-    </div>
+    <!-- Every factor note, for readers who want the full working. Closed by default:
+         the breakdown above already says what mattered. -->
+    <details class="section-card factor-details">
+      <summary>Every factor, line by line <span class="factor-count" id="factorCount"></span></summary>
+      <div id="factors"></div>
+    </details>
 
     <!-- Variance -->
     <div class="section-card" id="varianceSection" style="display:none">
@@ -377,8 +377,11 @@
   {% if edge_views %}
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight</h3>
-    <p class="empty-hint">The single factor that moved each projection the most, our projection against the line, and how it's actually played out over the last 10 games — pulled straight from a real run of the tool.</p>
-    <p class="empty-hint">The line here is each player's average, rounded to the nearest half: last season's until a player has games this season, then shifting toward this season a fifth at a time and resting on this season alone from their fifth game. It is not a sportsbook line. Edge is our projection minus that line.</p>
+    <p class="empty-hint">Where our projection sits furthest from each player's average tonight. Pick a row to see the full breakdown.</p>
+    <details class="how-line">
+      <summary>How the line is set</summary>
+      <p>The line is the player's average, rounded to the nearest half: last season's until they have games this season, shifting toward this season a fifth at a time and resting on this season alone from their fifth game. It is not a sportsbook line. Edge is our projection minus that line, and the last-10 column counts games above it.</p>
+    </details>
     <div class="edge-tabs" role="tablist" aria-label="Filter edges by prop">
       {% for view in edge_views %}{% if view.rows %}
       <button type="button" class="edge-tab{{ ' active' if loop.first }}" role="tab" id="edge-tab-{{ view.key }}"
@@ -395,9 +398,9 @@
               <th class="edge-th-player">Player</th>
               <th>Matchup</th>
               <th class="num">Line</th>
-              <th class="num">Edge</th>
-              <th class="num">L10 Avg</th>
-              <th class="num">L10 Hit</th>
+              <th class="num">Projection</th>
+              <th class="num">Lean</th>
+              <th class="num">Last 10 over</th>
             </tr>
           </thead>
           <tbody>
@@ -426,13 +429,18 @@
               </div>
             </td>
             <td class="num">{{ edge.line }}</td>
-            <td class="num"><span class="edge-value {{ edge.lean_direction }}">{{ "%+.1f"|format(edge.edge) }}</span></td>
-            <td class="num">{{ edge.l10_avg if edge.l10_avg is not none else '—' }}</td>
+            <td class="num">
+              <div class="stack-cell">
+                <span class="edge-value">{{ edge.predicted_value }}</span>
+                <span class="stack-sub">{{ "%+.1f"|format(edge.edge) }}</span>
+              </div>
+            </td>
+            <td class="num"><span class="lean-pill {{ edge.lean_direction }}">{{ edge.lean_label }} {{ edge.lean_pct }}%</span></td>
             <td class="num">
               {% if edge.l10_hit_pct is not none %}
-              <div class="hit-value {{ 'hit-strong' if edge.l10_hit_pct >= 60 else ('hit-weak' if edge.l10_hit_pct <= 40 else 'hit-mid') }}">
-                <span class="hit-frac">{{ edge.l10_hits }}/10</span>
-                <span class="hit-pct">{{ edge.l10_hit_pct }}%</span>
+              <div class="stack-cell">
+                <span class="hit-frac-main">{{ edge.l10_hits }} of 10</span>
+                <span class="stack-sub">avg {{ edge.l10_avg }}</span>
               </div>
               {% else %}—{% endif %}
             </td>
@@ -963,8 +971,8 @@ function renderResults(d) {
   const unit = d.prop_unit;
 
   // Header
-  document.getElementById('resTitle').textContent = `${d.player_name} - ${d.prop_label}`;
-  document.getElementById('resMatchup').textContent = `vs ${d.opponent} | Line: ${d.prop_line} ${unit}`;
+  document.getElementById('resTitle').textContent = `${d.player_name}: ${d.prop_label}`;
+  document.getElementById('resMatchup').textContent = `against ${d.opponent}, line ${d.prop_line} ${unit}`;
 
   // Headshot: hotlinked from ESPN, never stored by us. Hidden entirely if we
   // couldn't resolve the player's ESPN id (e.g. a name ESPN's roster doesn't
@@ -988,13 +996,22 @@ function renderResults(d) {
 
   // Lean badge
   const leanBadge = document.getElementById('leanBadge');
-  leanBadge.textContent = d.lean === 'NO LEAN' ? 'NO STRONG EDGE EITHER WAY' : `DATA FAVORS ${d.lean} ${d.prop_line}`;
+  leanBadge.textContent = d.lean === 'NO LEAN' ? 'No lean' : `${d.lean === 'OVER' ? 'Over' : 'Under'} ${d.prop_line}`;
   leanBadge.className = 'lean-badge ' + (d.lean === 'OVER' ? 'over' : d.lean === 'UNDER' ? 'under' : 'neutral');
 
   // Confidence
   const confBadge = document.getElementById('confBadge');
-  confBadge.textContent = d.confidence + ' CONFIDENCE';
+  confBadge.textContent = d.confidence.charAt(0) + d.confidence.slice(1).toLowerCase() + ' confidence';
   confBadge.className = 'confidence-badge ' + d.confidence.toLowerCase();
+
+  // The call in one sentence, from the same numbers shown below it.
+  const gap = Math.round((d.predicted_value - d.prop_line) * 10) / 10;
+  const where = gap === 0 ? 'right on' : `${Math.abs(gap)} ${gap > 0 ? 'above' : 'below'}`;
+  const call = d.lean === 'NO LEAN'
+    ? 'Neither side clears 55%, so there is no lean.'
+    : `${d.lean === 'OVER' ? 'Over' : 'Under'} comes in ${d.lean === 'OVER' ? d.over_prob : d.under_prob}% of the time by our numbers.`;
+  document.getElementById('verdictLine').textContent =
+    `We project ${d.predicted_value} ${unit}, ${where} the line of ${d.prop_line}. ${call}`;
 
   // Stats
   document.getElementById('seasonAvg').textContent = d.season_avg + ' ' + unit;
@@ -1004,6 +1021,7 @@ function renderResults(d) {
   // Key Factors
   const factorsDiv = document.getElementById('factors');
   factorsDiv.innerHTML = '';
+  document.getElementById('factorCount').textContent = `(${d.key_factors.length})`;
   d.key_factors.forEach(f => {
     const cls = f.startsWith('+') ? 'positive' : f.startsWith('-') ? 'negative' : 'neutral';
     factorsDiv.innerHTML += `<div class="factor-item ${cls}">${f}</div>`;
@@ -1328,7 +1346,7 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
   const impactValue = document.getElementById('headlineImpactValue');
   impactValue.textContent = `${sign}${Math.abs(delta).toFixed(1)}`;
   impactValue.className = `headline-impact-value ${dirClass}`;
-  document.getElementById('headlineImpactUnit').textContent = `${unit} ${headline.direction === 'down' ? 'LOST' : 'ADDED'}`;
+  document.getElementById('headlineImpactUnit').textContent = `${unit} ${headline.direction === 'down' ? 'taken off' : 'added'}`;
   document.getElementById('headlineDriver').className = `headline-driver ${dirClass}`;
 
   // Also factored in: the full multiplier chain, condensed
