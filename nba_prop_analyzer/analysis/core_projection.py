@@ -31,6 +31,20 @@ MIN_PRIOR_GAMES = 10        # fewer than this last season is not a history worth
 # their say, and the projection beats the average on all four props.
 FACTOR_STRENGTH = 0.25
 
+# Level: across 3,700 projections for players with 6+ games, results came in below the projection by
+# a steady margin (points 6%, rebounds 6%, assists 7%, 3PM 1%), in both halves of the sample. Nights
+# cut short by injury, foul trouble and blowouts are part of every real outcome and of no average
+# built from recent full games. Applied a little short of the measured gap.
+LEVEL = {"points": 0.95, "rebounds": 0.95, "assists": 0.94, "3pm": 1.0}
+
+
+def level_for(prop_type: str, component_baselines: dict | None = None) -> float:
+    if component_baselines:
+        total = sum(component_baselines.values())
+        return sum(LEVEL.get(c, 1.0) * v for c, v in component_baselines.items()) / total if total > 0 else 1.0
+    return LEVEL.get({"fgm": "points", "fga": "points", "3pa": "3pm"}.get(prop_type, prop_type), 1.0)
+
+
 def _played(games) -> list:
     return [g for g in (games or []) if (g.minutes or 0) > 0]
 
@@ -81,7 +95,7 @@ def core_note(ratio: float, details: dict) -> str:
     last = min(details["games"], RECENT_GAMES)
     return (f"{sign} Minutes and form: {recent:.1f} min over the last {last} {games if last == 1 else 'games'} "
             f"(usual {usual:.1f}), expecting {details['expected_minutes']:.1f} tonight at a per-minute rate "
-            f"steadied with last season")
+            f"steadied with last season, set to the level real results have come in at")
 
 
 

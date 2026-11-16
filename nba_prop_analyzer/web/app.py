@@ -121,6 +121,7 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
         injuries_by_player = fetch_injuries()
     except Exception:
         injuries_by_player = {}
+    players_out = _players_out()
 
     candidates = []
     for name in track_record.TRACKED_PLAYERS:
@@ -142,6 +143,7 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
                     prop_type=prop_type,
                     prop_line=line,
                     trend_override=1.0,
+                    out_players=players_out,
                 )
             except Exception:
                 continue
@@ -723,6 +725,16 @@ def api_news():
         return jsonify({"items": [], "error": str(e)}), 502
 
 
+def _players_out() -> list:
+    """Names ESPN's injury report lists as Out right now. Day-to-day and questionable players are
+    left alone: only a confirmed absence moves a teammate's projection."""
+    try:
+        report = fetch_injuries() or {}
+    except Exception:
+        return []
+    return [name for name, inj in report.items() if (inj.get("status") or "").strip().lower() == "out"]
+
+
 def _suggested_line(player, prop_type: str):
     """Nearest 0.5 of the player's season average for this prop (the same baseline
     convention as Quick Looks/Biggest Edges), or None when there's no real average."""
@@ -869,6 +881,7 @@ def analyze():
             prop_type=prop_type,
             prop_line=prop_line,
             trend_override=trend,
+            out_players=_players_out(),
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

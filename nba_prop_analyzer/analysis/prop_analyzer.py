@@ -20,7 +20,11 @@ from .teammate_efficiency import calculate_teammate_efficiency_factor
 from .rest_fatigue import calculate_rest_factor
 from .trends import estimate_trend_factor, set_manual_trend, get_game_log_summary, _stat_label
 from .probability import estimate_probability, classify_confidence, confidence_note
-from .core_projection import core_estimate, core_note, resize_factor
+from .core_projection import core_estimate, core_note, resize_factor, level_for
+from .context_factors import (
+    TEAMMATE_OUT_STRENGTH, POSITION_STRENGTH, build_position_defense, position_gap,
+    missing_scoring_share, prop_strength,
+)
 
 
 
@@ -34,6 +38,7 @@ class PropAnalyzer:
         self.tr_stats_prev = {}
         self.team_weights = {}
         self._teams_checked_at = 0.0
+        self.position_defense = {}
 
     def load_data(self):
         print("  Loading player stats snapshot...")
@@ -94,6 +99,7 @@ class PropAnalyzer:
         for p in self.players:
             p.team_abbr = normalize_team(p.team_abbr) or p.team_abbr
         self.refresh_player_teams(force=True)
+        self.position_defense = build_position_defense(self.players, snapshot_store.load_all_game_logs())
 
     def refresh_player_teams(self, force: bool = False, max_age_seconds: int = 6 * 3600) -> None:
         """
@@ -236,6 +242,7 @@ class PropAnalyzer:
         prop_type,
         prop_line,
         trend_override=1.0,
+        out_players=None,
     ):
         # Resolve player
         player = find_player(player_name, self.players)
@@ -328,7 +335,27 @@ class PropAnalyzer:
             resize_factor(f) for f in
             (matchup_factor, pace_factor, zone_factor, volume_factor, ft_factor, teammate_factor, rest_factor))
         if trend_override == 1.0:
-            trend_factor, trend_note = self._core_factor(player, prop_type, baseline)
+            trend_factor, trend_note, expected_minutes = self._core_factor(player, prop_type, baseline)
+        else:
+            expected_minutes = None
+
+        # Position defense joins the matchup slot; teammates out joins the teammate slot.
+        parts = ({c: self._get_baseline(player, c) for c in COMBO_PROP_TYPES[prop_type]}
+                 if prop_type in COMBO_PROP_TYPES else None)
+        gap, group, pos_ratio, pos_games = self._position_gap(player, opp_abbr, prop_type, parts)
+        position_factor = 1.0 + prop_strength(POSITION_STRENGTH, prop_type, parts) * gap
+        if abs(position_factor - 1.0) >= 0.01 and abs(position_factor - 1.0) >= abs(matchup_factor - 1.0):
+            matchup_note = (f"{'+' if position_factor > 1 else '-'} {opp_abbr} vs {group}: they have produced "
+                            f"{(pos_ratio - 1) * 100:+.0f}% against their own averages ({pos_games} player-games)")
+        matchup_factor *= position_factor
+
+        missing_share, missing_names = missing_scoring_share(
+            player, self.players, out_players, player_team.ppg, snapshot_store.load_all_game_logs())
+        out_factor = 1.0 + prop_strength(TEAMMATE_OUT_STRENGTH, prop_type, parts) * missing_share
+        if out_factor - 1.0 >= 0.005:
+            teammate_note = (f"+ {', '.join(missing_names)} out: {missing_share * 100:.0f}% of "
+                             f"{player_team.abbreviation}'s scoring to be picked up")
+        teammate_factor *= out_factor
 
         adjusted = (
             baseline * matchup_factor * pace_factor * zone_factor * volume_factor
@@ -369,6 +396,9 @@ class PropAnalyzer:
             "after_teammate": after_teammate,
             "after_rest": after_teammate * rest_factor,
             "final": adjusted,
+            "expected_minutes": expected_minutes,
+            "position_gap": gap,
+            "missing_share": missing_share,
             # Each factor's own descriptive note, so the UI can show the real
             # reasoning behind whichever factor ends up headlining the
             # breakdown (see headline.py) instead of generic templated copy.
@@ -428,9 +458,22 @@ class PropAnalyzer:
         prior = snapshot_store.load_game_logs(player.name, prev=True) or []
         estimate, details = core_estimate(prop_type, current, prior)
         if estimate is None or not baseline or baseline <= 0:
-            return 1.0, core_note(1.0, {})
-        ratio = estimate / baseline
-        return ratio, core_note(ratio, details)
+            return 1.0, core_note(1.0, {}), None
+        parts = ({c: self._get_baseline(player, c) for c in COMBO_PROP_TYPES[prop_type]}
+                 if prop_type in COMBO_PROP_TYPES else None)
+        ratio = level_for(prop_type, parts) * estimate / baseline
+        return ratio, core_note(ratio, details), details.get("expected_minutes")
+
+    def _position_gap(self, player, opp_abbr, prop_type, parts):
+        """The opponent's position-allowed gap; a combo is its components weighted by their size."""
+        if not parts:
+            return position_gap(self.position_defense, opp_abbr, player.position, prop_type)
+        total = sum(parts.values())
+        gaps = {c: position_gap(self.position_defense, opp_abbr, player.position, c) for c in parts}
+        gap = sum(gaps[c][0] * v for c, v in parts.items()) / total if total > 0 else 0.0
+        first = next(iter(gaps.values()))
+        ratio = 1.0 + (sum((gaps[c][2] or 1.0) * v for c, v in parts.items()) / total - 1.0 if total > 0 else 0.0)
+        return gap, first[1], ratio, first[3]
 
     def _get_baseline(self, player, prop_type):
         if prop_type == "points":

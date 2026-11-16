@@ -7,6 +7,11 @@ from ..config import STAT_CV
 from ..data.models import PlayerStats
 
 
+# Typical night as a share of the projected mean (3PM is counted, not curved, and already matched).
+TYPICAL_NIGHT = {"points": 0.94, "rebounds": 0.93, "assists": 0.92}
+DEFAULT_TYPICAL_NIGHT = 0.95
+
+
 def estimate_std_dev(mean: float, prop_type: str, game_values: Optional[List[float]] = None) -> float:
     """
     Estimate standard deviation.
@@ -46,8 +51,12 @@ def estimate_probability(
 
     std_dev = estimate_std_dev(predicted_value, prop_type, game_values)
 
-    over_prob = 1 - norm.cdf(prop_line, loc=predicted_value, scale=std_dev)
-    under_prob = norm.cdf(prop_line, loc=predicted_value, scale=std_dev)
+    # The projection is a mean, and a few big nights pull a mean above the typical night: in the
+    # November 2026 backtest a "50%" over actually happened about 42% of the time. The curve is
+    # centred on the typical night instead, so the percentages match how often things happen.
+    typical = predicted_value * TYPICAL_NIGHT.get(prop_type, DEFAULT_TYPICAL_NIGHT)
+    over_prob = 1 - norm.cdf(prop_line, loc=typical, scale=std_dev)
+    under_prob = norm.cdf(prop_line, loc=typical, scale=std_dev)
 
     return over_prob, under_prob
 

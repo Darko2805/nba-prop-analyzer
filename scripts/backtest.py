@@ -40,6 +40,7 @@ SNAP_REL = "nba_prop_analyzer/data/snapshot"
 SNAP_DIR = os.path.join(ROOT, SNAP_REL)
 CURRENT_FILES = ("players.json", "game_logs.json", "shot_zones.json", "team_stats.json", "opponent_zone_defense.json")
 PROPS = ("points", "rebounds", "assists", "3pm")
+BASE_ATTR = {"points": "ppg", "rebounds": "rpg", "assists": "apg", "3pm": "three_pm_pg"}
 STAT_FIELD = {"points": "pts", "rebounds": "reb", "assists": "ast", "3pm": "fg3"}
 FACTORS = ("matchup", "pace", "shot_zone", "volume", "free_throw", "teammate_efficiency", "rest_fatigue", "trend")
 PREGAME_CUTOFF_UTC_HOUR = 16  # every snapshot committed before this hour on game day predates tip-off
@@ -158,6 +159,10 @@ def main():
             cur_logs = snapshot_store._load_json("game_logs.json", {})
 
             n_before = len(rows)
+            playing = {}
+            for name, _ in by_day[day]:
+                if name in by_name:
+                    playing.setdefault(by_name[name].team_abbr, set()).add(name)
             for name, game in by_day[day]:
                 player = by_name.get(name)
                 opp = normalize_team(game.get("opponent", ""))
@@ -171,16 +176,23 @@ def main():
                     "has_prev": name in prev_players, "mpg": player.mpg,
                     "cur": _vals(cur_logs.get(name, [])),
                 }
+                # who sat that night: what a correct injury report would have said before tip-off
+                out = [p.name for p in analyzer.players
+                       if p.team_abbr == player.team_abbr and p.name not in playing[player.team_abbr]]
                 for prop in PROPS:
+                    line = round(getattr(player, BASE_ATTR[prop]) * 2) / 2 or 0.5
                     try:
                         with contextlib.redirect_stdout(io.StringIO()):
-                            pred = analyzer.analyze_prop(name, opp, prop, 0.5)
+                            pred = analyzer.analyze_prop(name, opp, prop, line, out_players=out)
                     except Exception as e:
                         skipped[str(e)[:40]] = skipped.get(str(e)[:40], 0) + 1
                         continue
                     b = pred.breakdown
                     rows.append({**base, "prop": prop, "baseline": b["baseline"], "final": b["final"],
                                  "actual": game.get(STAT_FIELD[prop]) or 0,
+                                 "line": line, "over_prob": pred.over_probability,
+                                 "expected_minutes": b["expected_minutes"], "position_gap": b["position_gap"],
+                                 "missing_share": b["missing_share"],
                                  **{f: b[f] for f in FACTORS}})
             print(f"{day}  snapshot {sha[:7]}  {len(by_day[day]):3d} player-games  {len(rows) - n_before:4d} rows", flush=True)
     finally:

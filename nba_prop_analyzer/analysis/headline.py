@@ -130,7 +130,7 @@ _FACTOR_LABELS = {
     "shot_zone": "Shot Zone",
     "volume": "Volume",
     "free_throw": "Free Throws",
-    "teammate_efficiency": "Teammate Efficiency",
+    "teammate_efficiency": "Teammates",
     "rest_fatigue": "Schedule Fatigue",
     "trend": "Minutes & form",
 }

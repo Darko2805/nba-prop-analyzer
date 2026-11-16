@@ -125,3 +125,10 @@ def save_meta(meta: dict) -> None:
 
 def load_meta() -> dict:
     return _load_json("meta.json", {})
+
+
+def load_all_game_logs(prev: bool = False) -> dict:
+    """Every player's raw game logs for the season (name -> list of dicts)."""
+    if prev not in _game_logs_cache:
+        _game_logs_cache[prev] = _load_json(_name("game_logs.json", prev), {})
+    return _game_logs_cache[prev]
