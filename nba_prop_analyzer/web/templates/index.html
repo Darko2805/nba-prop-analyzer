@@ -377,13 +377,13 @@
   {% if edge_views %}
   <div class="showcase" id="top-picks">
     <h3>Biggest edges tonight</h3>
-    <p class="empty-hint">Where our projection sits furthest from each player's average tonight. Pick a row to see the full breakdown.</p>
+    <p class="empty-hint">Where our projection sits furthest from each player's average tonight, with overs and unders mixed. Pick a row for the full breakdown, or a game under Tonight to see only that game.</p>
     <details class="how-line">
       <summary>How the line is set</summary>
       <p>The line is the player's average, rounded to the nearest half: last season's until they have games this season, shifting toward this season a fifth at a time and resting on this season alone from their fifth game. It is not a sportsbook line. Edge is our projection minus that line, and the last-10 column counts games above it.</p>
     </details>
     <div class="edge-tabs" role="tablist" aria-label="Filter edges by prop">
-      {% for view in edge_views %}{% if view.rows %}
+      {% for view in edge_views %}{% if view.rows and not view.game %}
       <button type="button" class="edge-tab{{ ' active' if loop.first }}" role="tab" id="edge-tab-{{ view.key }}"
               aria-controls="edge-panel-{{ view.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}"
               data-view="{{ view.key }}">{{ view.label }}</button>
@@ -391,6 +391,7 @@
     </div>
     {% for view in edge_views %}{% if view.rows %}
     <div class="edge-panel" id="edge-panel-{{ view.key }}" role="tabpanel" aria-labelledby="edge-tab-{{ view.key }}" data-view="{{ view.key }}"{% if not loop.first %} hidden{% endif %}>
+      {% if view.game %}<p class="edge-game-caption">Every lean in <strong>{{ view.label }}</strong>, most confident first. <button type="button" class="link-btn" data-edge-view="all">Show all games</button></p>{% endif %}
       <div class="edge-table-wrap">
         <table class="edge-table">
           <thead>
@@ -514,6 +515,17 @@
         {% endif %}
         <div class="games-list">
           {% for g in games_today %}
+          {% if g.edge_view %}
+          <button type="button" class="game-row game-row--link" data-edge-view="{{ g.edge_view }}" aria-pressed="false">
+            <span class="game-time">{{ g.start_time }}</span>
+            <span class="game-matchup">
+              {{ g.away_team }}{% if g.away_fatigue %} <span class="fatigue-tag" title="Schedule fatigue">{{ g.away_fatigue }}</span>{% endif %}
+              @ {{ g.home_team }}{% if g.home_fatigue %} <span class="fatigue-tag" title="Schedule fatigue">{{ g.home_fatigue }}</span>{% endif %}
+            </span>
+            <span class="game-arena">{{ g.arena }}</span>
+            <span class="game-open">See this game's leans</span>
+          </button>
+          {% else %}
           <div class="game-row">
             <span class="game-time">{{ g.start_time }}</span>
             <span class="game-matchup">
@@ -522,6 +534,7 @@
             </span>
             <span class="game-arena">{{ g.arena }}</span>
           </div>
+          {% endif %}
           {% endfor %}
         </div>
       {% else %}
@@ -1397,17 +1410,30 @@ function renderComponentBreakdown(bd, headline, signals, lean, unit) {
 // Popular Bets quick-picks + Biggest Edges cards: fill the form and run the same analysis flow.
 // Biggest Edges: the chips swap which prop's table is shown. Every table is already in the page,
 // so switching is instant and works the same with or without JavaScript running later.
+function showEdgeView(wanted, scroll) {
+  document.querySelectorAll('.edge-tab').forEach((t) => {
+    const on = t.dataset.view === wanted;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.edge-panel').forEach((panel) => {
+    panel.hidden = panel.dataset.view !== wanted;
+  });
+  document.querySelectorAll('.game-row--link').forEach((g) => {
+    const on = g.dataset.edgeView === wanted;
+    g.classList.toggle('active', on);
+    g.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  if (scroll) document.getElementById('top-picks').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 document.querySelectorAll('.edge-tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    const wanted = tab.dataset.view;
-    document.querySelectorAll('.edge-tab').forEach((t) => {
-      const on = t === tab;
-      t.classList.toggle('active', on);
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    document.querySelectorAll('.edge-panel').forEach((panel) => {
-      panel.hidden = panel.dataset.view !== wanted;
-    });
+  tab.addEventListener('click', () => showEdgeView(tab.dataset.view, false));
+});
+// A game under Tonight opens that game's leans; pressing it again goes back to the full list.
+document.querySelectorAll('[data-edge-view]').forEach((el) => {
+  el.addEventListener('click', () => {
+    const back = el.classList.contains('active');
+    showEdgeView(back ? 'all' : el.dataset.edgeView, !back);
   });
 });
 

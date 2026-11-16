@@ -47,3 +47,31 @@ class BalancedEdgesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MixSidesAndGameTests(unittest.TestCase):
+    def setUp(self):
+        def r(player, prop, side, pct, team="AAA"):
+            return {"player": player, "prop_type": prop, "lean_direction": side, "lean_pct": pct, "team": team}
+        self.by_prop = {
+            "points": [r("A", "points", "down", 80), r("B", "points", "down", 75), r("C", "points", "up", 58)],
+            "3pm": [r("D", "3pm", "down", 70), r("E", "3pm", "up", 57, "BBB")],
+            "rebounds": [r("F", "rebounds", "down", 66, "CCC")],
+            "assists": [],
+        }
+
+    def test_without_mixing_the_order_is_strength_alone(self):
+        from nba_prop_analyzer.analysis.edge_picks import balanced_edges
+        self.assertEqual([p["player"] for p in balanced_edges(self.by_prop, limit=3)], ["A", "D", "F"])
+
+    def test_mixing_brings_in_the_scarcer_side_when_one_exists(self):
+        from nba_prop_analyzer.analysis.edge_picks import balanced_edges
+        picks = balanced_edges(self.by_prop, limit=4, mix_sides=True)
+        self.assertEqual([p["player"] for p in picks], ["A", "E", "F", "C"])
+        self.assertEqual(len({p["player"] for p in picks}), 4)
+
+    def test_game_view_lists_every_lean_in_the_game_most_confident_first(self):
+        from nba_prop_analyzer.analysis.edge_picks import game_edges
+        rows = game_edges(self.by_prop, {"AAA", "BBB"})
+        self.assertEqual([r["player"] for r in rows], ["A", "B", "D", "C", "E"])
+        self.assertEqual(game_edges(self.by_prop, {"CCC"})[0]["player"], "F")

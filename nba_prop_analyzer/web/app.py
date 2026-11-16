@@ -229,11 +229,12 @@ def _attach_headshots(rows: list) -> None:
         row["headshot"] = cache[row["player"]]
 
 
-def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 8, by_prop: dict | None = None) -> list:
+def build_biggest_edges(analyzer: PropAnalyzer, games_today: list, limit: int = 8, by_prop: dict | None = None,
+                        mix_sides: bool = False) -> list:
     """The default list: the best edge of each prop in turn (so points cannot crowd out the rest),
     one slot per player. Also what the track record's daily picks are drawn from."""
     by_prop = by_prop if by_prop is not None else collect_edge_candidates(analyzer, games_today)
-    top = edge_picks.balanced_edges(by_prop, limit=limit)
+    top = edge_picks.balanced_edges(by_prop, limit=limit, mix_sides=mix_sides)
     _attach_headshots(top)
     return top
 
@@ -246,6 +247,21 @@ def build_edge_views(by_prop: dict, balanced: list) -> list:
         _attach_headshots(rows)
         views.append({"key": prop, "label": _EDGE_PROP_LABEL[prop], "rows": rows})
     return views
+
+
+def add_game_views(views: list, by_prop: dict, games_today: list) -> None:
+    """One more view per game on tonight's slate that has leans, opened from the Tonight list.
+    Marks each such game with the view it opens (g["edge_view"])."""
+    for g in games_today:
+        away, home = normalize_team(g["away_team"]), normalize_team(g["home_team"])
+        if not away or not home:
+            continue
+        rows = edge_picks.game_edges(by_prop, {away, home})
+        if not rows:
+            continue
+        _attach_headshots(rows)
+        g["edge_view"] = f"game-{away}-{home}"
+        views.append({"key": g["edge_view"], "label": f"{away} @ {home}", "rows": rows, "game": True})
 
 
 def annotate_schedule_fatigue(games_today: list) -> list:
@@ -528,10 +544,12 @@ def index():
     in_season = tonight["kind"] in ("regular", "postseason")
     popular_bets = build_popular_bets(analyzer, games if in_season else []) if analyzer.is_ready() else []
     edge_candidates = collect_edge_candidates(analyzer, games) if (analyzer.is_ready() and in_season) else {}
-    biggest_edges = build_biggest_edges(analyzer, games, by_prop=edge_candidates) if edge_candidates else []
+    biggest_edges = build_biggest_edges(analyzer, games, by_prop=edge_candidates, mix_sides=True) if edge_candidates else []
     edge_views = build_edge_views(edge_candidates, biggest_edges) if biggest_edges else []
     fatigue_watch = build_fatigue_watch(games) if in_season else []
     games_annotated = annotate_schedule_fatigue(games) if in_season else games
+    if edge_views:
+        add_game_views(edge_views, edge_candidates, games_annotated)
     model_inputs = build_model_inputs()
     return render_template(
         "index.html",

@@ -1920,3 +1920,25 @@ html { scroll-behavior: auto; }
 .edge-td-player { min-width: 190px; }
 .edge-table { min-width: 560px; }
 .edge-table th, .edge-table td { padding-left: 0.6rem; padding-right: 0.6rem; }
+
+/* Tonight's games open that game's leans in Biggest Edges */
+.game-row--link {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--card-border);
+  border-left: 2px solid transparent;
+  padding: 0 0 0.65rem 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: padding-left 0.15s, border-color 0.15s;
+}
+.game-row--link:hover .game-matchup, .game-row--link.active .game-matchup { color: var(--accent); }
+.game-row--link.active { border-left-color: var(--accent); padding-left: 0.6rem; }
+.game-row--link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.game-open { font-size: 0.72rem; color: var(--accent); }
+.game-row--link.active .game-open { visibility: hidden; }
+.edge-game-caption { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.9rem; }
+.edge-game-caption strong { color: var(--text); }
