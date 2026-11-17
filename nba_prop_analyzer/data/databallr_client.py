@@ -117,7 +117,7 @@ def _parse_team_raw(raw: dict) -> tuple[dict[str, TeamProfile], dict[str, Oppone
             short_mid_acc=_safe_float(t, "ShortMidRangeAccuracy"),
             three_point_rate=fg3a / max(total_fga, 1),
             ppg=points / max(gp, 1),
-            rpg=_safe_float(t, "TotalRebounds", 0) / max(gp, 1) if t.get("TotalRebounds") else 44.0,
+            rpg=_safe_float(t, "Rebounds", 0) / max(gp, 1) if t.get("Rebounds") else 44.0,
             apg=_safe_float(t, "Assists", 0) / max(gp, 1) if t.get("Assists") else 25.0,
             fga=total_fga / max(gp, 1),
         )
@@ -165,7 +165,7 @@ def _parse_team_raw(raw: dict) -> tuple[dict[str, TeamProfile], dict[str, Oppone
             opp_ftm=ftm_total / max(gp, 1),
             opp_fta=fta_total / max(gp, 1),
             opp_ft_pct=opp_ft_pct,
-            opp_rpg=_safe_float(o, "TotalRebounds", 0) / max(gp, 1) if o.get("TotalRebounds") else 44.0,
+            opp_rpg=_safe_float(o, "Rebounds", 0) / max(gp, 1) if o.get("Rebounds") else 44.0,
             opp_apg=_safe_float(o, "Assists", 0) / max(gp, 1) if o.get("Assists") else 25.0,
             opp_topg=_safe_float(o, "Turnovers", 0) / max(gp, 1),
             opp_live_topg=_safe_float(o, "LiveBallTurnovers", 0) / max(gp, 1),
