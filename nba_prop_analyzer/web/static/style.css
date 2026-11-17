@@ -1950,9 +1950,9 @@ html { scroll-behavior: auto; }
   .edge-table thead { display: none; }
   .edge-table tr.edge-row {
     display: grid;
-    grid-template-columns: 4.4rem 3.2rem 1fr auto;
+    grid-template-columns: 3.5rem 2.5rem minmax(0, 1fr) auto;
     grid-template-areas: "player player player lean" "matchup line proj l10";
-    column-gap: 0.9rem;
+    column-gap: 0.5rem;
     row-gap: 0.6rem;
     padding: 0.85rem 0;
     border-bottom: 1px solid var(--card-border);
@@ -1964,6 +1964,8 @@ html { scroll-behavior: auto; }
   .edge-table tr.edge-row td:nth-child(3) { grid-area: line; }
   .edge-table tr.edge-row td:nth-child(4) { grid-area: proj; }
   .edge-table tr.edge-row td:nth-child(5) { grid-area: lean; align-self: start; text-align: right; }
+  .edge-table .lean-pill { padding: 0.25rem 0.45rem; font-size: 0.76rem; }
+  .edge-table .matchup-opp { font-size: 0.82rem; }
   .edge-table tr.edge-row td:nth-child(6) { grid-area: l10; text-align: right; }
   .edge-table tr.edge-row td:nth-child(3)::before,
   .edge-table tr.edge-row td:nth-child(4)::before,
@@ -1978,7 +1980,6 @@ html { scroll-behavior: auto; }
   .edge-table tr.edge-row td:nth-child(4)::before { content: "Projection"; }
   .edge-table tr.edge-row td:nth-child(6)::before { content: "Last 10 over"; }
   .edge-table .matchup-cell, .edge-table td:nth-child(4) .stack-cell { align-items: flex-start; }
-  .edge-table td:nth-child(4) .stack-cell { flex-direction: row; align-items: baseline; gap: 0.4rem; }
 
   .factor-chain {
     display: grid;
