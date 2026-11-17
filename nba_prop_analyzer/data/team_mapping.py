@@ -272,7 +272,7 @@ def fetch_back_to_back_teams(today=None) -> set:
     import datetime as _datetime
 
     if today is None:
-        today = _datetime.date.today()
+        today = tonight_date()  # the Eastern slate date, not the host clock (UTC rolls over mid-slate)
     yesterday = today - _datetime.timedelta(days=1)
     return _fetch_teams_playing_on(yesterday)
 
@@ -291,7 +291,7 @@ def fetch_three_in_four_teams(today=None) -> set:
     from collections import Counter
 
     if today is None:
-        today = _datetime.date.today()
+        today = tonight_date()  # the Eastern slate date, not the host clock (UTC rolls over mid-slate)
 
     game_counts: Counter = Counter()
     for days_back in (1, 2, 3):
@@ -461,7 +461,7 @@ def fetch_schedule_load(today=None, window_days: int = 14) -> dict:
     from collections import defaultdict
 
     if today is None:
-        today = _datetime.date.today()
+        today = tonight_date()  # the Eastern slate date, not the host clock (UTC rolls over mid-slate)
 
     day_teams: dict = {}
     load: dict = defaultdict(lambda: {
