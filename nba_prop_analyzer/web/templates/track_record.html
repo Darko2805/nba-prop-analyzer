@@ -38,15 +38,15 @@
     <section class="about-section">
       <div class="stat-row">
         <div class="stat-box">
-          <div class="label">Days Tracked</div>
+          <div class="label">Days tracked</div>
           <div class="value">{{ summary.days }}</div>
         </div>
         <div class="stat-box">
-          <div class="label">Picks Graded</div>
+          <div class="label">Picks graded</div>
           <div class="value">{{ summary.graded }}</div>
         </div>
         <div class="stat-box">
-          <div class="label">Hit Rate</div>
+          <div class="label">Hit rate</div>
           <div class="value">{{ summary.hit_rate ~ '%' if summary.hit_rate is not none else '—' }}</div>
         </div>
       </div>
@@ -79,7 +79,7 @@
           {% endif %}
           <div class="track-body">
             <span class="track-player">{{ pick.player }}</span>
-            <span class="track-detail">{{ pick.unit }} {{ pick.line }} vs {{ pick.opponent }} — we projected {{ pick.predicted_value }}, called the {{ pick.lean }}</span>
+            <span class="track-detail">{{ pick.unit }} vs {{ pick.opponent }} · Line {{ pick.line }} · Projection {{ pick.predicted_value }} · Lean {{ pick.lean|capitalize }}</span>
             {% if pick.headline_note %}<span class="track-note">{{ pick.headline_note }}</span>{% endif %}
           </div>
           <div class="track-result track-result-{{ pick.status }}">

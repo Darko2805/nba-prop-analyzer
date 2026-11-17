@@ -1942,3 +1942,55 @@ html { scroll-behavior: auto; }
 .game-row--link.active .game-open { visibility: hidden; }
 .edge-game-caption { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.9rem; }
 .edge-game-caption strong { color: var(--text); }
+
+/* Phones: the edges table and the factor chain fit the card instead of scrolling sideways */
+@media (max-width: 640px) {
+  .edge-table-wrap { overflow-x: visible; margin: 0; padding: 0; }
+  .edge-table, .edge-table tbody { display: block; min-width: 0; }
+  .edge-table thead { display: none; }
+  .edge-table tr.edge-row {
+    display: grid;
+    grid-template-columns: 4.4rem 3.2rem 1fr auto;
+    grid-template-areas: "player player player lean" "matchup line proj l10";
+    column-gap: 0.9rem;
+    row-gap: 0.6rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .edge-table tr.edge-row:last-child { border-bottom: none; }
+  .edge-table tr.edge-row td { padding: 0; border-bottom: none; text-align: left; }
+  .edge-table tr.edge-row td:nth-child(1) { grid-area: player; min-width: 0; max-width: none; }
+  .edge-table tr.edge-row td:nth-child(2) { grid-area: matchup; }
+  .edge-table tr.edge-row td:nth-child(3) { grid-area: line; }
+  .edge-table tr.edge-row td:nth-child(4) { grid-area: proj; }
+  .edge-table tr.edge-row td:nth-child(5) { grid-area: lean; align-self: start; text-align: right; }
+  .edge-table tr.edge-row td:nth-child(6) { grid-area: l10; text-align: right; }
+  .edge-table tr.edge-row td:nth-child(3)::before,
+  .edge-table tr.edge-row td:nth-child(4)::before,
+  .edge-table tr.edge-row td:nth-child(6)::before {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
+  }
+  .edge-table tr.edge-row td:nth-child(3)::before { content: "Line"; }
+  .edge-table tr.edge-row td:nth-child(4)::before { content: "Projection"; }
+  .edge-table tr.edge-row td:nth-child(6)::before { content: "Last 10 over"; }
+  .edge-table .matchup-cell, .edge-table td:nth-child(4) .stack-cell { align-items: flex-start; }
+  .edge-table td:nth-child(4) .stack-cell { flex-direction: row; align-items: baseline; gap: 0.4rem; }
+
+  .factor-chain {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem 0.25rem;
+    overflow-x: visible;
+  }
+  .factor-chain .chain-arrow { display: none; }
+  .factor-chain .chain-step { min-width: 0; }
+
+  .headline-driver { flex-direction: column; align-items: stretch; }
+  .headline-impact { border-left: none; padding-left: 0; border-top: 1px solid var(--card-border); padding-top: 0.75rem; width: 100%; }
+  .conviction-banner { flex-wrap: wrap; row-gap: 0.2rem; }
+  .conviction-detail { margin-left: 0; flex-basis: 100%; }
+}
