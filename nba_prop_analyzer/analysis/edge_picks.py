@@ -46,7 +46,11 @@ def balanced_edges(by_prop: dict, limit: int = 8, props: tuple = CORE_PROPS, mix
     return chosen
 
 
-def game_edges(by_prop: dict, teams, limit: int = 8) -> list:
-    """Every lean in one game, across all props, most confident first."""
-    rows = [c for cands in by_prop.values() for c in cands if c.get("team") in teams]
-    return sorted(rows, key=lambda c: c.get("lean_pct", 0), reverse=True)[:limit]
+def game_edges(by_prop: dict, teams, limit: int = 10) -> list:
+    """One game's leans: each player's most confident prop, most confident first."""
+    best = {}
+    for rows in by_prop.values():
+        for c in rows:
+            if c.get("team") in teams and c.get("lean_pct", 0) > best.get(c["player"], {}).get("lean_pct", -1):
+                best[c["player"]] = c
+    return sorted(best.values(), key=lambda c: c.get("lean_pct", 0), reverse=True)[:limit]

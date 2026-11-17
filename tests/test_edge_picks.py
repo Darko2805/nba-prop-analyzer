@@ -70,8 +70,11 @@ class MixSidesAndGameTests(unittest.TestCase):
         self.assertEqual([p["player"] for p in picks], ["A", "E", "F", "C"])
         self.assertEqual(len({p["player"] for p in picks}), 4)
 
-    def test_game_view_lists_every_lean_in_the_game_most_confident_first(self):
+    def test_game_view_keeps_each_players_most_confident_prop(self):
         from nba_prop_analyzer.analysis.edge_picks import game_edges
+        self.by_prop["rebounds"].append({"player": "A", "prop_type": "rebounds", "lean_direction": "down",
+                                         "lean_pct": 60, "team": "AAA"})
         rows = game_edges(self.by_prop, {"AAA", "BBB"})
-        self.assertEqual([r["player"] for r in rows], ["A", "B", "D", "C", "E"])
+        self.assertEqual([(r["player"], r["prop_type"]) for r in rows],
+                         [("A", "points"), ("B", "points"), ("D", "3pm"), ("C", "points"), ("E", "3pm")])
         self.assertEqual(game_edges(self.by_prop, {"CCC"})[0]["player"], "F")

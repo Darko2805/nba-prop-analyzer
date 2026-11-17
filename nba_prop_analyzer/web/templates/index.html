@@ -391,7 +391,7 @@
     </div>
     {% for view in edge_views %}{% if view.rows %}
     <div class="edge-panel" id="edge-panel-{{ view.key }}" role="tabpanel" aria-labelledby="edge-tab-{{ view.key }}" data-view="{{ view.key }}"{% if not loop.first %} hidden{% endif %}>
-      {% if view.game %}<p class="edge-game-caption">Every lean in <strong>{{ view.label }}</strong>, most confident first. <button type="button" class="link-btn" data-edge-view="all">Show all games</button></p>{% endif %}
+      {% if view.game %}<p class="edge-game-caption">Every rotation player in <strong>{{ view.label }}</strong> with a lean, at their most confident prop, most confident first. <button type="button" class="link-btn" data-edge-view="all">Show all games</button></p>{% endif %}
       <div class="edge-table-wrap">
         <table class="edge-table">
           <thead>

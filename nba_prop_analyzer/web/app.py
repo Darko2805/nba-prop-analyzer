@@ -96,7 +96,12 @@ _EDGE_MIN_LINE = {"points": 8, "rebounds": 3, "assists": 2, "3pm": 1.5, "pra": 1
 _EDGE_PER_PROP = 8
 
 
-def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
+# A game's own view lists that game's rotation players, not only the tracked names. A player needs
+# this many minutes a night to have a role steady enough to project.
+GAME_VIEW_MIN_MPG = 24.0
+
+
+def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list, wide: bool = False) -> dict:
     """
     The engine's own output, surfaced on the homepage instead of only after you run an analysis
     yourself: for tonight's tracked players, every prop in _EDGE_PROPS is run through the same
@@ -104,7 +109,8 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
     factor that moved its projection the most. Only calls with a clear lean (over/under probability
     above 55%) are kept: a row is only an "edge" if the model actually leans. Returns
     {prop_type: [candidates, strongest first]}. Reuses track_record.py's player list so there's one
-    curated roster to keep in sync, not two.
+    curated roster to keep in sync, not two. wide=True also runs every rotation player (GAME_VIEW_MIN_MPG)
+    on tonight's teams, for the per-game views; each candidate says whether it is a tracked player.
     """
     todays_opponent_by_team = {}
     is_home_by_team = {}
@@ -124,11 +130,22 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
     players_out = _players_out()
     out_names = set(players_out)
 
-    candidates = []
+    roster = []
     for name in track_record.TRACKED_PLAYERS:
         player = find_player(name, analyzer.players)
-        if not player:
-            continue
+        if player:
+            roster.append((player, True))
+    if wide:
+        tracked_names = {p.name for p, _ in roster}
+        roster += [(p, False) for p in analyzer.players
+                   if p.name not in tracked_names and (p.mpg or 0) >= GAME_VIEW_MIN_MPG
+                   and normalize_team(p.team_abbr) in todays_opponent_by_team
+                   # only players the daily snapshot already has games for: anyone else would mean a
+                   # live basketball-reference fetch, rate-limited to seconds apiece, inside a page load
+                   and snapshot_store.load_game_logs(p.name)]
+
+    candidates = []
+    for player, tracked in roster:
         opponent = todays_opponent_by_team.get(normalize_team(player.team_abbr))
         if not opponent:
             continue
@@ -209,6 +226,7 @@ def collect_edge_candidates(analyzer: PropAnalyzer, games_today: list) -> dict:
                 "l10_hits": hits_of_10,
                 "injury_status": inj["status"] if inj else None,
                 "score": headline["score"],
+                "tracked": tracked,
             })
 
     by_prop = {prop: [] for prop in _EDGE_PROPS}
@@ -543,13 +561,17 @@ def index():
     # sections (and the opponent prefill on Quick Looks) wait for real games.
     in_season = tonight["kind"] in ("regular", "postseason")
     popular_bets = build_popular_bets(analyzer, games if in_season else []) if analyzer.is_ready() else []
-    edge_candidates = collect_edge_candidates(analyzer, games) if (analyzer.is_ready() and in_season) else {}
-    biggest_edges = build_biggest_edges(analyzer, games, by_prop=edge_candidates, mix_sides=True) if edge_candidates else []
+    all_candidates = collect_edge_candidates(analyzer, games, wide=True) if (analyzer.is_ready() and in_season) else {}
+    # The headline list and prop chips stay on the tracked names (the same pool as the track record);
+    # each game's own view uses every rotation player in that game.
+    edge_candidates = {prop: [c for c in rows if c["tracked"]] for prop, rows in all_candidates.items()}
+    has_edges = any(edge_candidates.values())
+    biggest_edges = build_biggest_edges(analyzer, games, by_prop=edge_candidates, mix_sides=True) if has_edges else []
     edge_views = build_edge_views(edge_candidates, biggest_edges) if biggest_edges else []
     fatigue_watch = build_fatigue_watch(games) if in_season else []
     games_annotated = annotate_schedule_fatigue(games) if in_season else games
     if edge_views:
-        add_game_views(edge_views, edge_candidates, games_annotated)
+        add_game_views(edge_views, all_candidates, games_annotated)
     model_inputs = build_model_inputs()
     return render_template(
         "index.html",
